@@ -1,0 +1,13 @@
+README.md
+pyproject.toml
+app/__init__.py
+app/config.py
+app/server.py
+mcp_ollama_router.egg-info/PKG-INFO
+mcp_ollama_router.egg-info/SOURCES.txt
+mcp_ollama_router.egg-info/dependency_links.txt
+mcp_ollama_router.egg-info/requires.txt
+mcp_ollama_router.egg-info/top_level.txt
+tests/test_client.py
+tests/test_config.py
+tests/test_router.py

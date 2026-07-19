@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: mcp-ollama-router
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: fastmcp>=3.4.4
+Requires-Dist: requests
+Requires-Dist: httpx
+Requires-Dist: loguru
+Requires-Dist: python-dotenv
+Requires-Dist: pydantic

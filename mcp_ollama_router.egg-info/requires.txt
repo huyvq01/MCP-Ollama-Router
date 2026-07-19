@@ -1,0 +1,6 @@
+fastmcp>=3.4.4
+requests
+httpx
+loguru
+python-dotenv
+pydantic
