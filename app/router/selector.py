@@ -1,40 +1,42 @@
 from app.registry import registry_service
+
 from app.router.matcher import matcher
+from app.router.policy import RoutingPolicy
 
 
 class ModelSelector:
+
+    def __init__(self):
+
+        self.policy = RoutingPolicy()
 
     async def select(
         self,
         prompt: str,
     ):
 
-        capability = matcher.match(prompt)
+        capability = matcher.capability(prompt)
 
-        candidates = [
-            model
-            for model in registry_service.models()
-            if model.enabled
-        ]
+        models = registry_service.enabled()
 
-        for model in candidates:
+        if not models:
 
-            if capability in model.capabilities:
+            raise RuntimeError(
+                "No available model."
+            )
 
-                return (
-                    model.provider,
-                    model.name,
-                )
-
-        if not candidates:
-            raise RuntimeError("No available model.")
-
-        default = min(
-            candidates,
-            key=lambda x: x.priority,
+        ranked = sorted(
+            models,
+            key=lambda m: self.policy.score(
+                m,
+                capability,
+            ),
+            reverse=True,
         )
 
+        best = ranked[0]
+
         return (
-            default.provider,
-            default.name,
+            best.provider,
+            best.name,
         )

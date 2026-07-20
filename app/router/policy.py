@@ -1,9 +1,16 @@
 class RoutingPolicy:
 
-    def provider(self):
+    def score(
+        self,
+        model,
+        capability,
+    ):
 
-        return "ollama"
+        score = 0
 
-    def allow_fallback(self):
+        if capability in model.capabilities:
+            score += 100
 
-        return True
+        score -= model.priority
+
+        return score

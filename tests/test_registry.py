@@ -1,20 +1,26 @@
 import asyncio
 
-from app.core.lifecycle import startup
-from app.core.lifecycle import shutdown
-
+from app.providers import provider_registry
 from app.registry import registry_service
 
 
 async def main():
 
-    await startup()
+    await provider_registry.startup()
 
-    for model in registry_service.models():
+    await registry_service.refresh()
 
-        print(model)
+    print(
+        registry_service.models()
+    )
 
-    await shutdown()
+    print(
+        registry_service.enabled()
+    )
+
+    await provider_registry.shutdown()
 
 
-asyncio.run(main())
+if __name__ == "__main__":
+
+    asyncio.run(main())

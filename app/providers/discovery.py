@@ -6,5 +6,8 @@ class ProviderDiscovery:
     def discover(self):
 
         return {
-            "ollama": OllamaProvider()
+            "ollama": OllamaProvider(),
         }
+
+
+provider_discovery = ProviderDiscovery()

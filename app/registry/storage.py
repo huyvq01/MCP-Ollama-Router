@@ -1,11 +1,15 @@
 from app.registry.schemas import ModelMetadata
 
 
-class ModelStorage:
+class RegistryStorage:
 
     def __init__(self):
 
         self._models: dict[str, ModelMetadata] = {}
+
+    def clear(self):
+
+        self._models.clear()
 
     def add(
         self,
@@ -23,13 +27,15 @@ class ModelStorage:
 
     def list(self):
 
-        return list(
-            self._models.values()
-        )
+        return list(self._models.values())
 
-    def clear(self):
+    def enabled(self):
 
-        self._models.clear()
+        return [
+            model
+            for model in self._models.values()
+            if model.enabled
+        ]
 
 
-storage = ModelStorage()
+storage = RegistryStorage()

@@ -2,11 +2,16 @@ from pydantic import BaseModel, Field
 
 
 class ModelMetadata(BaseModel):
+
     provider: str
+
     name: str
-    family: str | None = None
-    parameter_size: str | None = None
-    quantization: str | None = None
+
+    family: str = ""
+
+    parameter_size: str = ""
+
+    quantization: str = ""
 
     capabilities: list[str] = Field(default_factory=list)
 

@@ -1,18 +1,26 @@
-from app.providers import provider_registry
-from app.registry.storage import storage
+from app.providers.registry import ProviderRegistry
+
 from app.registry.schemas import ModelMetadata
+from app.registry.storage import storage
 
 
 class RegistryService:
+    def __init__(
+        self,
+        provider_registry: ProviderRegistry,
+    ) -> None:
+        self._provider_registry = provider_registry
 
-    async def refresh(self):
+    async def refresh(self) -> None:
 
         storage.clear()
 
-        provider = provider_registry.get("ollama")
+        provider = self._provider_registry.get("ollama")
 
         if provider is None:
-            raise RuntimeError("Provider 'ollama' is not registered")
+            raise RuntimeError(
+                "Provider 'ollama' is not registered."
+            )
 
         models = await provider.list_models()
 
@@ -42,8 +50,11 @@ class RegistryService:
     def models(self):
         return storage.list()
 
-    def model(self, name: str):
+    def enabled(self):
+        return storage.enabled()
+
+    def model(
+        self,
+        name: str,
+    ):
         return storage.get(name)
-
-
-registry_service = RegistryService()

@@ -1,24 +1,31 @@
-from app.router.rules import RULES
+from app.router.rules import *
 
 
-class PromptMatcher:
+class ModelMatcher:
 
-    def match(
+    def capability(
         self,
         prompt: str,
     ) -> str:
 
-        prompt = prompt.lower()
+        text = prompt.lower()
 
-        for rule in RULES:
+        for keyword in CODE:
 
-            if any(
-                keyword in prompt
-                for keyword in rule.keywords
-            ):
-                return rule.capability
+            if keyword in text:
+                return "code"
+
+        for keyword in REASONING:
+
+            if keyword in text:
+                return "reasoning"
+
+        for keyword in VISION:
+
+            if keyword in text:
+                return "vision"
 
         return "general"
 
 
-matcher = PromptMatcher()
+matcher = ModelMatcher()

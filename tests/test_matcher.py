@@ -1,17 +1,25 @@
 from app.router.matcher import matcher
 
-tests = [
-    "Write a Python API",
-    "Solve this math proof",
-    "Describe this image",
-    "Hello, how are you?",
-]
-
-for prompt in tests:
-
-    print(prompt)
-
-    print(
-        "=>",
-        matcher.match(prompt),
+print(
+    matcher.capability(
+        "write python code"
     )
+)
+
+print(
+    matcher.capability(
+        "solve math"
+    )
+)
+
+print(
+    matcher.capability(
+        "describe image"
+    )
+)
+
+print(
+    matcher.capability(
+        "hello"
+    )
+)

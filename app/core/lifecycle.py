@@ -1,17 +1,18 @@
-from app.providers import provider_registry
-from app.registry import registry_service
+from app.dependencies import container
 
 
 async def startup():
 
-    await provider_registry.startup()
+    await container.provider_registry.startup()
 
-    if provider_registry.get("ollama") is None:
-        raise RuntimeError("Ollama provider is not registered.")
+    if container.provider_registry.get("ollama") is None:
+        raise RuntimeError(
+            "Ollama provider is not registered."
+        )
 
-    await registry_service.refresh()
+    await container.registry.refresh()
 
 
 async def shutdown():
 
-    await provider_registry.shutdown()
+    await container.provider_registry.shutdown()

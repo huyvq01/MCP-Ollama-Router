@@ -1,13 +1,13 @@
 class FallbackManager:
 
-    async def run(
+    async def fallback(
         self,
-        func,
-        *args,
-        **kwargs,
+        provider,
+        model,
+        messages,
     ):
 
-        return await func(
-            *args,
-            **kwargs,
+        return await provider.chat(
+            model=model,
+            messages=messages,
         )

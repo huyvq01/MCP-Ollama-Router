@@ -7,28 +7,12 @@ async def main():
 
     await provider_registry.startup()
 
-    provider = provider_registry.get(
-        "ollama"
+    print(
+        provider_registry.names()
     )
 
     print(
-        await provider.health()
-    )
-
-    print(
-        await provider.list_models()
-    )
-
-    print(
-        await provider.chat(
-            model="qwen2.5-coder:7b",
-            messages=[
-                {
-                    "role": "user",
-                    "content": "Hello"
-                }
-            ]
-        )
+        await provider_registry.healthy()
     )
 
     await provider_registry.shutdown()
