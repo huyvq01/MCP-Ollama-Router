@@ -1,80 +1,94 @@
+from time import perf_counter
+
 import httpx
 
+from app.models.chat import ChatRequest, ChatResult
 from app.providers.base import BaseProvider
 from app.providers.config import ollama_config
 
 
 class OllamaProvider(BaseProvider):
-
-    def __init__(self):
-
+    def __init__(self) -> None:
         self.client: httpx.AsyncClient | None = None
 
-    async def startup(self):
-
+    async def startup(self) -> None:
         self.client = httpx.AsyncClient(
-            timeout=ollama_config.timeout
+            timeout=ollama_config.timeout,
         )
 
-    async def shutdown(self):
-
-        if self.client:
-
+    async def shutdown(self) -> None:
+        if self.client is not None:
             await self.client.aclose()
 
     def _client(self) -> httpx.AsyncClient:
-
         if self.client is None:
-
-            raise RuntimeError(
-                "Provider not started."
-            )
+            raise RuntimeError("Provider not started.")
 
         return self.client
 
-    async def health(self):
-
-        r = await self._client().get(
-            f"{ollama_config.base_url}/api/tags"
+    async def health(self) -> bool:
+        response = await self._client().get(
+            f"{ollama_config.base_url}/api/tags",
         )
 
-        return r.status_code == 200
+        return response.status_code == 200
 
-    async def list_models(self):
-
-        r = await self._client().get(
-            f"{ollama_config.base_url}/api/tags"
+    async def list_models(self) -> list[str]:
+        response = await self._client().get(
+            f"{ollama_config.base_url}/api/tags",
         )
 
-        r.raise_for_status()
+        response.raise_for_status()
 
-        data = r.json()
+        data = response.json()
 
-        return [
-            m["name"]
-            for m in data.get("models", [])
-        ]
+        return [model["name"] for model in data.get("models", [])]
 
     async def chat(
         self,
-        model,
-        messages,
-        **kwargs,
-    ):
-
+        request: ChatRequest,
+    ) -> ChatResult:
         payload = {
-            "model": model,
-            "messages": messages,
-            "stream": False,
+            "model": request.model,
+            "messages": request.messages,
+            "stream": request.stream,
+            "options": {
+                "temperature": request.temperature,
+            },
         }
 
-        payload.update(kwargs)
+        if request.max_tokens is not None:
+            payload["options"]["num_predict"] = request.max_tokens
 
-        r = await self._client().post(
+        if request.top_p is not None:
+            payload["options"]["top_p"] = request.top_p
+
+        if request.stop is not None:
+            payload["options"]["stop"] = request.stop
+
+        start = perf_counter()
+
+        response = await self._client().post(
             f"{ollama_config.base_url}/api/chat",
             json=payload,
         )
 
-        r.raise_for_status()
+        elapsed = int((perf_counter() - start) * 1000)
 
-        return r.json()["message"]["content"]
+        response.raise_for_status()
+
+        data = response.json()
+
+        prompt_tokens = data.get("prompt_eval_count", 0)
+        completion_tokens = data.get("eval_count", 0)
+
+        return ChatResult(
+            provider="ollama",
+            model=request.model,
+            content=data["message"]["content"],
+            finish_reason="stop" if data.get("done") else None,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            latency_ms=elapsed,
+        )

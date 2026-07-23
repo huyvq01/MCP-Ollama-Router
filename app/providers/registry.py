@@ -1,24 +1,16 @@
-from typing import Dict
-
 from app.providers.base import BaseProvider
 from app.providers.discovery import provider_discovery
 
 
 class ProviderRegistry:
+    def __init__(self) -> None:
+        self._providers: dict[str, BaseProvider] = provider_discovery.discover()
 
-    def __init__(self):
-
-        self._providers: Dict[str, BaseProvider] = (
-            provider_discovery.discover()
-        )
-
-    async def startup(self):
-
+    async def startup(self) -> None:
         for provider in self._providers.values():
             await provider.startup()
 
-    async def shutdown(self):
-
+    async def shutdown(self) -> None:
         for provider in self._providers.values():
             await provider.shutdown()
 
@@ -26,31 +18,22 @@ class ProviderRegistry:
         self,
         name: str,
     ) -> BaseProvider | None:
-
         return self._providers.get(name)
 
-    def providers(self):
-
+    def providers(self) -> dict[str, BaseProvider]:
         return self._providers
 
-    def names(self):
-
+    def names(self) -> list[str]:
         return list(self._providers.keys())
 
-    async def healthy(self):
-
-        healthy = []
+    async def healthy(self) -> list[str]:
+        healthy: list[str] = []
 
         for name, provider in self._providers.items():
-
             try:
-
                 if await provider.health():
-
                     healthy.append(name)
-
             except Exception:
-
                 pass
 
         return healthy

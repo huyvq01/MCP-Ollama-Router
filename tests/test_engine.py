@@ -1,21 +1,25 @@
-import asyncio
+import pytest
 
-from app.providers import provider_registry
-from app.router import router_engine
+from app.dependencies import container
 
 
-async def main():
+@pytest.mark.asyncio
+async def test_engine_chat():
+    provider_registry = container.provider_registry
+    router = container.router
 
     await provider_registry.startup()
 
-    print(
-        await router_engine.chat(
+    try:
+        await container.registry.refresh()
+
+        answer = await router.chat(
             "demo",
-            "Hello"
+            "Hello",
         )
-    )
 
-    await provider_registry.shutdown()
+        assert isinstance(answer, str)
+        assert answer != ""
 
-
-asyncio.run(main())
+    finally:
+        await provider_registry.shutdown()

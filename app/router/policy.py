@@ -1,11 +1,12 @@
-class RoutingPolicy:
+from app.registry.schemas import ModelMetadata
 
+
+class RoutingPolicy:
     def score(
         self,
-        model,
-        capability,
-    ):
-
+        model: ModelMetadata,
+        capability: str,
+    ) -> int:
         score = 0
 
         if capability in model.capabilities:

@@ -1,13 +1,10 @@
 from fastmcp import FastMCP
 
-from app.services import cache
+from app.dependencies import container
 
 
-def register(server: FastMCP):
-
+def register(server: FastMCP) -> None:
     @server.tool
-    def clear_cache():
-
-        cache.clear()
-
+    def clear_cache() -> str:
+        container.cache.clear()
         return "Cache cleared."

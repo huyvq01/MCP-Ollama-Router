@@ -1,1 +1,5 @@
-from app.registry.service import registry_service
+from app.registry.service import RegistryService
+
+__all__ = [
+    "RegistryService",
+]

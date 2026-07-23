@@ -1,18 +1,21 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from fastmcp import FastMCP
+
 from app.dependencies import container
 
 
-async def startup():
-
+@asynccontextmanager
+async def app_lifespan(
+    server: FastMCP,
+) -> AsyncIterator[dict[str, object]]:
     await container.provider_registry.startup()
 
-    if container.provider_registry.get("ollama") is None:
-        raise RuntimeError(
-            "Ollama provider is not registered."
-        )
+    try:
+        await container.registry.refresh()
 
-    await container.registry.refresh()
+        yield {}
 
-
-async def shutdown():
-
-    await container.provider_registry.shutdown()
+    finally:
+        await container.provider_registry.shutdown()

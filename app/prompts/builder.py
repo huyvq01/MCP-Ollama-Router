@@ -1,4 +1,3 @@
 from app.prompts.message import MessageBuilder
 
-
-builder = MessageBuilder()
+builder: MessageBuilder = MessageBuilder()

@@ -1,23 +1,30 @@
-import asyncio
+import pytest
 
-from app.providers import provider_registry
+from app.dependencies import container
+from app.registry.schemas import ModelMetadata
 from app.router.selector import ModelSelector
 
 
-async def main():
+@pytest.mark.asyncio
+async def test_selector_select_model() -> None:
+    provider_registry = container.provider_registry
 
     await provider_registry.startup()
 
-    selector = ModelSelector()
+    try:
+        await container.registry.refresh()
 
-    provider, model = await selector.select(
-        "Write a Python web server."
-    )
+        selector = ModelSelector(container.registry)
 
-    print(provider)
-    print(model)
+        selected = await selector.select("Write a Python web server.")
 
-    await provider_registry.shutdown()
+        assert isinstance(selected, ModelMetadata)
 
+        assert selected.provider == "ollama"
 
-asyncio.run(main())
+        assert selected.name != ""
+
+        assert "code" in selected.capabilities
+
+    finally:
+        await provider_registry.shutdown()

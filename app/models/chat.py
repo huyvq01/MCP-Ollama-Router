@@ -1,17 +1,37 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+from app.models.message import Message
 
 
 class ChatRequest(BaseModel):
+    model: str
 
-    session_id: str
+    messages: list[Message]
 
-    prompt: str
+    stream: bool = False
 
-    model: str | None = None
+    temperature: float = 0.7
+
+    max_tokens: int | None = None
+
+    top_p: float | None = None
+
+    stop: list[str] | None = None
 
 
-class ChatResponse(BaseModel):
+class ChatResult(BaseModel):
+    provider: str
 
     model: str
 
-    answer: str
+    content: str
+
+    finish_reason: str | None = None
+
+    prompt_tokens: int = 0
+
+    completion_tokens: int = 0
+
+    total_tokens: int = 0
+
+    latency_ms: int = Field(default=0)

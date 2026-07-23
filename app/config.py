@@ -9,11 +9,9 @@ from pathlib import Path
 # =========================
 
 PROJECT_NAME = "MCP Ollama Router"
-
 PROJECT_VERSION = "1.0.0"
 
 ROOT_DIR = Path(__file__).parent
-
 LOG_DIR = ROOT_DIR / "logs"
 
 # =========================
@@ -23,9 +21,7 @@ LOG_DIR = ROOT_DIR / "logs"
 OLLAMA_HOST = "http://127.0.0.1:11434"
 
 OLLAMA_CHAT_API = f"{OLLAMA_HOST}/api/chat"
-
 OLLAMA_TAGS_API = f"{OLLAMA_HOST}/api/tags"
-
 OLLAMA_GENERATE_API = f"{OLLAMA_HOST}/api/generate"
 
 REQUEST_TIMEOUT = 300
@@ -47,5 +43,4 @@ MAX_HISTORY = 20
 # =========================
 
 LOG_LEVEL = "INFO"
-
 LOG_FILE = LOG_DIR / "router.log"

@@ -1,27 +1,34 @@
-from app.services import router
+import pytest
 
-session = "demo"
+from app.dependencies import container
 
-print("=" * 50)
 
-print(
-    router.chat(
-        session,
-        "Xin chào"
-    )
-)
+@pytest.mark.asyncio
+async def test_router_history():
+    provider_registry = container.provider_registry
+    router = container.router
 
-print("=" * 50)
+    await provider_registry.startup()
 
-print(
-    router.chat(
-        session,
-        "Bạn còn nhớ câu trước không?"
-    )
-)
+    try:
+        await container.registry.refresh()
 
-print("=" * 50)
+        first = await router.chat("demo", "Hello")
 
-print(
-    router.sessions()
-)
+        second = await router.chat("demo", "Who am I?")
+
+        assert isinstance(first, str)
+        assert isinstance(second, str)
+
+        history = container.history.get("demo")
+
+        assert len(history) >= 4
+
+        assert history[0]["role"] == "user"
+        assert history[1]["role"] == "assistant"
+        assert history[2]["role"] == "user"
+        assert history[3]["role"] == "assistant"
+
+    finally:
+        router.clear("demo")
+        await provider_registry.shutdown()

@@ -1,5 +1,4 @@
 from app.providers.registry import ProviderRegistry
-
 from app.registry.schemas import ModelMetadata
 from app.registry.storage import storage
 
@@ -12,20 +11,16 @@ class RegistryService:
         self._provider_registry = provider_registry
 
     async def refresh(self) -> None:
-
         storage.clear()
 
         provider = self._provider_registry.get("ollama")
 
         if provider is None:
-            raise RuntimeError(
-                "Provider 'ollama' is not registered."
-            )
+            raise RuntimeError("Provider 'ollama' is not registered.")
 
         models = await provider.list_models()
 
         for name in models:
-
             capabilities = ["general"]
 
             lower = name.lower()
@@ -47,14 +42,14 @@ class RegistryService:
                 )
             )
 
-    def models(self):
-        return storage.list()
+    def models(self) -> list[ModelMetadata]:
+        return storage.all()
 
-    def enabled(self):
+    def enabled(self) -> list[ModelMetadata]:
         return storage.enabled()
 
     def model(
         self,
         name: str,
-    ):
+    ) -> ModelMetadata | None:
         return storage.get(name)

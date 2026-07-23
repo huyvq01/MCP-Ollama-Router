@@ -1,20 +1,61 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-ollama-router"
 version = "0.1.0"
+description = "Production MCP Router for Ollama"
+readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    "fastmcp>=3.4.4",
-    "requests",
+    "fastmcp",
     "httpx",
+    "pydantic>=2",
+    "pydantic-settings",
     "loguru",
-    "python-dotenv",
-    "pydantic"
 ]
 
-[tool.setuptools]
-packages = ["app"]
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.mypy]
+python_version = "3.11"
+
+strict = true
+
+exclude = [
+    "^\\.venv/",
+    "^htmlcov/",
+    "^build/",
+    "^dist/",
+]
+
+ignore_missing_imports = true
+pretty = true
+show_error_codes = true
+warn_unused_configs = true
+
+disable_error_code = [
+    "untyped-decorator",
+]
+
+[[tool.mypy.overrides]]
+module = [
+    "app.tools.*",
+]
+
+disallow_untyped_decorators = false
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "mypy",
+    "ruff",
+    "pre-commit",
+    "build",
+    "twine",
+]

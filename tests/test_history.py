@@ -1,21 +1,33 @@
-from app.services import history_manager
+from app.dependencies import container
 
-history_manager.add_user_message(
-    "demo",
-    "Hello"
-)
 
-history_manager.add_assistant_message(
-    "demo",
-    "Hi!"
-)
+def test_history_append_get_clear():
+    history = container.history
 
-print(
-    history_manager.get_messages("demo")
-)
+    history.clear("demo")
 
-history_manager.clear("demo")
+    history.append(
+        "demo",
+        "user",
+        "Hello",
+    )
 
-print(
-    history_manager.get_messages("demo")
-)
+    history.append(
+        "demo",
+        "assistant",
+        "Hi!",
+    )
+
+    messages = history.get("demo")
+
+    assert len(messages) == 2
+
+    assert messages[0]["role"] == "user"
+    assert messages[0]["content"] == "Hello"
+
+    assert messages[1]["role"] == "assistant"
+    assert messages[1]["content"] == "Hi!"
+
+    history.clear("demo")
+
+    assert history.get("demo") == []

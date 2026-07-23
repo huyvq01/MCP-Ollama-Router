@@ -1,31 +1,23 @@
 from abc import ABC, abstractmethod
 
+from app.models.chat import ChatRequest, ChatResult
+
 
 class BaseProvider(ABC):
-
-    name: str
+    @abstractmethod
+    async def startup(self) -> None: ...
 
     @abstractmethod
-    async def startup(self) -> None:
-        ...
+    async def shutdown(self) -> None: ...
 
     @abstractmethod
-    async def shutdown(self) -> None:
-        ...
+    async def health(self) -> bool: ...
 
     @abstractmethod
-    async def health(self) -> bool:
-        ...
-
-    @abstractmethod
-    async def list_models(self) -> list[str]:
-        ...
+    async def list_models(self) -> list[str]: ...
 
     @abstractmethod
     async def chat(
         self,
-        model: str,
-        messages: list[dict],
-        **kwargs,
-    ) -> str:
-        ...
+        request: ChatRequest,
+    ) -> ChatResult: ...

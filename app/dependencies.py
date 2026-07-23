@@ -1,15 +1,13 @@
 from app.providers.registry import ProviderRegistry
 from app.registry.service import RegistryService
 from app.router.engine import RouterEngine
-from app.services.history import HistoryManager
 from app.services.cache import Cache
+from app.services.history import HistoryManager
 from app.services.session import SessionManager
 
 
 class Container:
-
-    def __init__(self):
-
+    def __init__(self) -> None:
         self.provider_registry = ProviderRegistry()
 
         self.history = HistoryManager()
@@ -18,9 +16,7 @@ class Container:
 
         self.session = SessionManager()
 
-        self.registry = RegistryService(
-            self.provider_registry
-        )
+        self.registry = RegistryService(self.provider_registry)
 
         self.router = RouterEngine(
             provider_registry=self.provider_registry,
@@ -29,4 +25,4 @@ class Container:
         )
 
 
-container = Container()
+container: Container = Container()

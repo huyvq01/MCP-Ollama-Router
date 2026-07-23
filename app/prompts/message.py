@@ -1,15 +1,14 @@
+from app.models.message import Message
 from app.prompts.system import SYSTEM_PROMPT
 
 
 class MessageBuilder:
-
     def build(
         self,
-        history,
-        prompt,
-    ):
-
-        messages = [
+        history: list[Message],
+        prompt: str,
+    ) -> list[Message]:
+        messages: list[Message] = [
             {
                 "role": "system",
                 "content": SYSTEM_PROMPT,

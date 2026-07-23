@@ -1,31 +1,92 @@
-from app.router.rules import *
+from __future__ import annotations
+
+from enum import StrEnum
 
 
-class ModelMatcher:
+class Capability(StrEnum):
+    GENERAL = "general"
+    CODE = "code"
+    REASONING = "reasoning"
+    VISION = "vision"
+    TRANSLATION = "translation"
+    SUMMARIZE = "summarize"
 
-    def capability(
-        self,
-        prompt: str,
-    ) -> str:
 
+class PromptMatcher:
+    CODE_KEYWORDS = (
+        "code",
+        "python",
+        "java",
+        "c#",
+        "golang",
+        "go",
+        "rust",
+        "bug",
+        "fix",
+        "refactor",
+        "sql",
+        "api",
+        "fastapi",
+        "javascript",
+        "typescript",
+        "docker",
+        "git",
+    )
+
+    REASONING_KEYWORDS = (
+        "explain",
+        "reason",
+        "logic",
+        "algorithm",
+        "math",
+        "optimize",
+        "analysis",
+        "why",
+        "prove",
+        "solve",
+    )
+
+    VISION_KEYWORDS = (
+        "image",
+        "photo",
+        "picture",
+        "vision",
+        "describe image",
+        "ocr",
+        "detect",
+        "recognize",
+    )
+
+    TRANSLATION_KEYWORDS = (
+        "translate",
+        "dịch",
+    )
+
+    SUMMARIZE_KEYWORDS = (
+        "summarize",
+        "tóm tắt",
+        "summary",
+    )
+
+    def match(self, prompt: str) -> Capability:
         text = prompt.lower()
 
-        for keyword in CODE:
+        if any(word in text for word in self.CODE_KEYWORDS):
+            return Capability.CODE
 
-            if keyword in text:
-                return "code"
+        if any(word in text for word in self.REASONING_KEYWORDS):
+            return Capability.REASONING
 
-        for keyword in REASONING:
+        if any(word in text for word in self.VISION_KEYWORDS):
+            return Capability.VISION
 
-            if keyword in text:
-                return "reasoning"
+        if any(word in text for word in self.TRANSLATION_KEYWORDS):
+            return Capability.TRANSLATION
 
-        for keyword in VISION:
+        if any(word in text for word in self.SUMMARIZE_KEYWORDS):
+            return Capability.SUMMARIZE
 
-            if keyword in text:
-                return "vision"
-
-        return "general"
+        return Capability.GENERAL
 
 
-matcher = ModelMatcher()
+matcher = PromptMatcher()

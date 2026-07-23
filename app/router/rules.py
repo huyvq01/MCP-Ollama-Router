@@ -29,4 +29,4 @@ VISION = [
     "photo",
 ]
 
-GENERAL = []
+GENERAL: list[str] = []

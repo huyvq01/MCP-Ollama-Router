@@ -1,6 +1,5 @@
-fastmcp>=3.4.4
-requests
+fastmcp
 httpx
+pydantic>=2
+pydantic-settings
 loguru
-python-dotenv
-pydantic
