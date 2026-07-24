@@ -7,11 +7,9 @@ class RoutingPolicy:
         model: ModelMetadata,
         capability: str,
     ) -> int:
-        score = 0
+        score = model.priority
 
         if capability in model.capabilities:
             score += 100
-
-        score -= model.priority
 
         return score

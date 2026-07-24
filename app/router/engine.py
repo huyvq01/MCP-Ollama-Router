@@ -28,12 +28,7 @@ class RouterEngine:
         prompt: str,
         model: str | None = None,
     ) -> str:
-        history = self._history.get(session_id)
-
-        messages = builder.build(
-            history,
-            prompt,
-        )
+        selected: ModelMetadata | None
 
         if model is None:
             selected = await self.selector.select(prompt)
@@ -42,6 +37,16 @@ class RouterEngine:
 
             if selected is None:
                 raise RuntimeError(f"Model '{model}' not found.")
+
+        if selected is None:
+            raise RuntimeError("No model available.")
+
+        history = self._history.get(session_id)
+
+        messages = builder.build(
+            history,
+            prompt,
+        )
 
         candidates = sorted(
             self._registry.enabled(),
