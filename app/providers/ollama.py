@@ -33,7 +33,7 @@ class OllamaProvider(BaseProvider):
             f"{ollama_config.base_url}/api/tags",
         )
 
-        return bool(response.status_code == 200)
+        return response.status_code == 200
 
     async def list_models(self) -> list[str]:
         response = await self._client().get(
@@ -93,49 +93,54 @@ class OllamaProvider(BaseProvider):
             json=payload,
         )
 
-        elapsed = int((perf_counter() - start) * 1000)
+        elapsed = int(
+            (perf_counter() - start) * 1000
+        )
 
         response.raise_for_status()
 
         data: dict[str, Any] = response.json()
 
-        prompt_tokens_raw = data.get(
+        prompt_tokens = data.get(
             "prompt_eval_count",
             0,
         )
 
-        completion_tokens_raw = data.get(
+        completion_tokens = data.get(
             "eval_count",
             0,
         )
 
-        prompt_tokens = prompt_tokens_raw if isinstance(prompt_tokens_raw, int) else 0
+        if not isinstance(prompt_tokens, int):
+            prompt_tokens = 0
 
-        completion_tokens = (
-            completion_tokens_raw if isinstance(completion_tokens_raw, int) else 0
-        )
+        if not isinstance(completion_tokens, int):
+            completion_tokens = 0
 
-        message = data.get("message")
+        message = data.get("message", {})
 
-        if not isinstance(message, dict):
-            raise RuntimeError("Invalid response from Ollama: missing message.")
+        content = ""
 
-        content = message.get("content")
+        if isinstance(message, dict):
+            raw_content = message.get("content", "")
 
-        if not isinstance(content, str):
-            raise RuntimeError("Invalid response from Ollama: missing message content.")
-
-        done = data.get("done")
-
-        finish_reason: str | None = "stop" if done is True else None
+            if isinstance(raw_content, str):
+                content = raw_content
 
         return ChatResult(
             provider="ollama",
             model=request.model,
             content=content,
-            finish_reason=finish_reason,
+            finish_reason=(
+                "stop"
+                if data.get("done")
+                else None
+            ),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
-            total_tokens=(prompt_tokens + completion_tokens),
+            total_tokens=(
+                prompt_tokens
+                + completion_tokens
+            ),
             latency_ms=elapsed,
         )
