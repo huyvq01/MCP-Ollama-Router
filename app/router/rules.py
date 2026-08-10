@@ -1,32 +1,68 @@
-CODE = [
+GENERAL: list[str] = []
+
+CODE = {
+    "code",
     "python",
+    "javascript",
+    "typescript",
     "java",
     "c#",
-    "cpp",
-    "c++",
+    "csharp",
+    "golang",
     "go",
     "rust",
-    "typescript",
-    "javascript",
     "sql",
-    "regex",
-    "docker",
-    "kubernetes",
-]
+    "debug",
+    "bug",
+    "error",
+    "exception",
+    "function",
+    "class",
+    "api",
+    "algorithm",
+    "refactor",
+}
 
-REASONING = [
+REASONING = {
+    "why",
+    "explain why",
+    "reason",
+    "reasoning",
+    "analyze",
+    "analysis",
+    "architecture",
+    "design",
+    "compare",
+    "tradeoff",
+    "root cause",
+    "deep",
+    "deeply",
     "math",
     "logic",
-    "reason",
-    "prove",
-    "analysis",
-]
+    "solve",
+}
 
-VISION = [
+VISION = {
     "image",
-    "ocr",
     "picture",
     "photo",
-]
+    "screenshot",
+    "diagram",
+    "vision",
+    "ocr",
+}
 
-GENERAL: list[str] = []
+COMPLEXITY = {
+    "large",
+    "huge",
+    "entire project",
+    "whole project",
+    "whole repository",
+    "large codebase",
+    "codebase",
+    "architecture",
+    "deep analysis",
+    "deeply analyze",
+    "comprehensive",
+    "thorough",
+}

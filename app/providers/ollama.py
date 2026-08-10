@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from app.models.chat import ChatRequest, ChatResult
+from app.models.provider import ModelInfo
 from app.providers.base import BaseProvider
 from app.providers.config import ollama_config
 
@@ -13,8 +14,16 @@ class OllamaProvider(BaseProvider):
         self.client: httpx.AsyncClient | None = None
 
     async def startup(self) -> None:
+        if self.client is not None:
+            return
+
         self.client = httpx.AsyncClient(
-            timeout=ollama_config.timeout,
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=ollama_config.timeout,
+                write=30.0,
+                pool=10.0,
+            ),
         )
 
     async def shutdown(self) -> None:
@@ -24,7 +33,9 @@ class OllamaProvider(BaseProvider):
 
     def _client(self) -> httpx.AsyncClient:
         if self.client is None:
-            raise RuntimeError("Provider not started.")
+            raise RuntimeError(
+                "Provider not started."
+            )
 
         return self.client
 
@@ -44,7 +55,10 @@ class OllamaProvider(BaseProvider):
 
         data: dict[str, Any] = response.json()
 
-        models = data.get("models", [])
+        models = data.get(
+            "models",
+            [],
+        )
 
         if not isinstance(models, list):
             return []
@@ -62,16 +76,121 @@ class OllamaProvider(BaseProvider):
 
         return result
 
+    async def list_model_details(
+        self,
+    ) -> list[ModelInfo]:
+        response = await self._client().get(
+            f"{ollama_config.base_url}/api/tags",
+        )
+
+        response.raise_for_status()
+
+        data: dict[str, Any] = response.json()
+
+        raw_models = data.get(
+            "models",
+            [],
+        )
+
+        if not isinstance(raw_models, list):
+            return []
+
+        result: list[ModelInfo] = []
+
+        for raw_model in raw_models:
+            if not isinstance(raw_model, dict):
+                continue
+
+            name = raw_model.get("name")
+
+            if not isinstance(name, str):
+                continue
+
+            details = raw_model.get(
+                "details",
+                {},
+            )
+
+            if not isinstance(details, dict):
+                details = {}
+
+            family = details.get(
+                "family",
+                "",
+            )
+
+            parameter_size = details.get(
+                "parameter_size",
+                "",
+            )
+
+            quantization = details.get(
+                "quantization_level",
+                "",
+            )
+
+            context_length = raw_model.get(
+                "context_length",
+                0,
+            )
+
+            capabilities = raw_model.get(
+                "capabilities",
+                [],
+            )
+
+            if not isinstance(family, str):
+                family = ""
+
+            if not isinstance(parameter_size, str):
+                parameter_size = ""
+
+            if not isinstance(quantization, str):
+                quantization = ""
+
+            if not isinstance(context_length, int):
+                context_length = 0
+
+            if not isinstance(capabilities, list):
+                capabilities = []
+
+            normalized_capabilities = [
+                value
+                for value in capabilities
+                if isinstance(value, str)
+            ]
+
+            result.append(
+                ModelInfo(
+                    provider="ollama",
+                    name=name,
+                    family=family,
+                    parameter_size=parameter_size,
+                    quantization=quantization,
+                    context_length=context_length,
+                    capabilities=normalized_capabilities,
+                )
+            )
+
+        return result
+
     async def chat(
         self,
         request: ChatRequest,
     ) -> ChatResult:
         options: dict[str, Any] = {
             "temperature": request.temperature,
-        }
 
-        if request.max_tokens is not None:
-            options["num_predict"] = request.max_tokens
+            # Runtime limit for 16 GB machines.
+            "num_ctx": ollama_config.num_ctx,
+
+            # Prevent unbounded generation.
+            "num_predict": (
+                request.max_tokens
+                if request.max_tokens is not None
+                else ollama_config.num_predict
+            ),
+        }
 
         if request.top_p is not None:
             options["top_p"] = request.top_p
@@ -82,7 +201,8 @@ class OllamaProvider(BaseProvider):
         payload: dict[str, Any] = {
             "model": request.model,
             "messages": request.messages,
-            "stream": request.stream,
+            "stream": False,
+            "keep_alive": ollama_config.keep_alive,
             "options": options,
         }
 
@@ -117,12 +237,18 @@ class OllamaProvider(BaseProvider):
         if not isinstance(completion_tokens, int):
             completion_tokens = 0
 
-        message = data.get("message", {})
+        message = data.get(
+            "message",
+            {},
+        )
 
         content = ""
 
         if isinstance(message, dict):
-            raw_content = message.get("content", "")
+            raw_content = message.get(
+                "content",
+                "",
+            )
 
             if isinstance(raw_content, str):
                 content = raw_content

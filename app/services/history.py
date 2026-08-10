@@ -3,17 +3,41 @@ from threading import Lock
 
 from app.core.settings import settings
 from app.models.message import Message
+from app.services.token_budget import trim_messages_to_tokens
 
 
 class HistoryManager:
     def __init__(self) -> None:
-        self._history: defaultdict[str, list[Message]] = defaultdict(list)
-        self._lock = Lock()
-        self._max_history = settings.max_history
+        self._history: defaultdict[
+            str,
+            list[Message],
+        ] = defaultdict(list)
 
-    def get(self, session_id: str) -> list[Message]:
+        self._lock = Lock()
+
+        self._max_history = settings.max_history
+        self._max_history_tokens = (
+            settings.max_history_tokens
+        )
+
+    def get(
+        self,
+        session_id: str,
+    ) -> list[Message]:
         with self._lock:
-            return list(self._history[session_id])
+            history = list(
+                self._history[session_id]
+            )
+
+        if len(history) > self._max_history:
+            history = history[
+                -self._max_history :
+            ]
+
+        return trim_messages_to_tokens(
+            history,
+            self._max_history_tokens,
+        )
 
     def append(
         self,
@@ -29,15 +53,28 @@ class HistoryManager:
                 }
             )
 
-            if len(self._history[session_id]) > self._max_history:
-                self._history[session_id] = self._history[session_id][
-                    -self._max_history :
-                ]
+            if (
+                len(self._history[session_id])
+                > self._max_history
+            ):
+                self._history[session_id] = (
+                    self._history[session_id][
+                        -self._max_history :
+                    ]
+                )
 
-    def clear(self, session_id: str) -> None:
+    def clear(
+        self,
+        session_id: str,
+    ) -> None:
         with self._lock:
-            self._history.pop(session_id, None)
+            self._history.pop(
+                session_id,
+                None,
+            )
 
     def sessions(self) -> list[str]:
         with self._lock:
-            return list(self._history.keys())
+            return list(
+                self._history.keys()
+            )

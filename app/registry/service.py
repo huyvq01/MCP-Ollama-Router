@@ -13,34 +13,112 @@ class RegistryService:
     async def refresh(self) -> None:
         storage.clear()
 
-        provider = self._provider_registry.get("ollama")
+        provider = self._provider_registry.get(
+            "ollama",
+        )
 
         if provider is None:
-            raise RuntimeError("Provider 'ollama' is not registered.")
+            raise RuntimeError(
+                "Provider 'ollama' is not registered."
+            )
 
-        models = await provider.list_models()
+        models = await provider.list_model_details()
 
-        for name in models:
-            capabilities = ["general"]
-
-            lower = name.lower()
-
-            if "coder" in lower:
-                capabilities.append("code")
-
-            if "deepseek" in lower:
-                capabilities.append("reasoning")
-
-            if "llava" in lower:
-                capabilities.append("vision")
+        for model in models:
+            capabilities = self._map_capabilities(
+                model.name,
+                model.capabilities,
+            )
 
             storage.add(
                 ModelMetadata(
-                    provider="ollama",
-                    name=name,
+                    provider=model.provider,
+                    name=model.name,
+                    family=model.family,
+                    parameter_size=model.parameter_size,
+                    quantization=model.quantization,
+                    context_length=model.context_length,
                     capabilities=capabilities,
+                    priority=self._priority(
+                        model.parameter_size,
+                    ),
+                    enabled=model.enabled,
                 )
             )
+
+    @staticmethod
+    def _map_capabilities(
+        model_name: str,
+        provider_capabilities: list[str],
+    ) -> list[str]:
+        capabilities: list[str] = [
+            "general",
+        ]
+
+        lower_name = model_name.lower()
+
+        if (
+            "coder" in lower_name
+            or "code" in lower_name
+            or "insert" in provider_capabilities
+        ):
+            capabilities.append("code")
+
+        if (
+            "deepseek" in lower_name
+            or "reasoning" in lower_name
+            or "thinking" in provider_capabilities
+        ):
+            capabilities.append("reasoning")
+
+        if (
+            "llava" in lower_name
+            or "vision" in provider_capabilities
+        ):
+            capabilities.append("vision")
+
+        return capabilities
+
+    @staticmethod
+    def _priority(
+        parameter_size: str,
+    ) -> int:
+        normalized = parameter_size.upper().strip()
+
+        try:
+            value = float(
+                normalized.rstrip("B"),
+            )
+        except ValueError:
+            return 100
+
+        if value <= 4:
+            return 120
+
+        if value <= 8:
+            return 100
+
+        if value <= 14:
+            return 80
+
+        return 60
+
+    @staticmethod
+    def _priority_from_name(
+        model_name: str,
+    ) -> int:
+        lower = model_name.lower()
+
+        if "3b" in lower:
+            return 120
+
+        if "7b" in lower:
+            return 100
+
+        if "14b" in lower:
+            return 80
+
+        return 100
 
     def models(self) -> list[ModelMetadata]:
         return storage.all()

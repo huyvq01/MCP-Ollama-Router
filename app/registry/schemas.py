@@ -12,7 +12,11 @@ class ModelMetadata(BaseModel):
 
     quantization: str = ""
 
-    capabilities: list[str] = Field(default_factory=list)
+    context_length: int = 0
+
+    capabilities: list[str] = Field(
+        default_factory=list,
+    )
 
     priority: int = 100
 

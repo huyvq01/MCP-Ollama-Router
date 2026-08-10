@@ -12,6 +12,7 @@ class ChatRequest(BaseModel):
 
     temperature: float = 0.7
 
+    # None = use provider default.
     max_tokens: int | None = None
 
     top_p: float | None = None
@@ -34,4 +35,6 @@ class ChatResult(BaseModel):
 
     total_tokens: int = 0
 
-    latency_ms: int = Field(default=0)
+    latency_ms: int = Field(
+        default=0,
+    )
