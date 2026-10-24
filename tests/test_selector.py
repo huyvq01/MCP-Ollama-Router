@@ -5,6 +5,9 @@ from app.registry.schemas import ModelMetadata
 from app.router.selector import ModelSelector
 
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.mark.asyncio
 async def test_selector_select_model() -> None:
     provider_registry = container.provider_registry

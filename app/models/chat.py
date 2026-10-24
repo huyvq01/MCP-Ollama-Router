@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+from app.config import MAX_REQUEST_OUTPUT_TOKENS
 from app.models.message import Message
 
 
@@ -9,11 +10,14 @@ class ChatRequest(BaseModel):
     messages: list[Message]
 
     stream: bool = False
+    think: bool | None = None
 
     temperature: float = 0.7
 
     # None = use provider default.
-    max_tokens: int | None = None
+    max_tokens: int | None = Field(
+        default=None, ge=1, le=MAX_REQUEST_OUTPUT_TOKENS,
+    )
 
     top_p: float | None = None
 

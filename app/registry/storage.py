@@ -8,6 +8,10 @@ class RegistryStorage:
     def clear(self) -> None:
         self._models.clear()
 
+    def replace(self, models: list[ModelMetadata]) -> None:
+        """Publish a complete snapshot after all models are validated."""
+        self._models = {model.name: model for model in models}
+
     def add(
         self,
         model: ModelMetadata,

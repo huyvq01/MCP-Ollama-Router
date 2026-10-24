@@ -1,336 +1,141 @@
+import asyncio
 import logging
+import re
+from uuid import uuid4
 
+import httpx
+
+from app.config import MAX_REQUEST_OUTPUT_TOKENS
 from app.models.chat import ChatRequest
 from app.prompts.builder import builder
 from app.providers.registry import ProviderRegistry
 from app.registry.schemas import ModelMetadata
 from app.registry.service import RegistryService
 from app.router.fallback import FallbackManager
+from app.router.model_size import supported
 from app.router.selector import ModelSelector
+from app.router.tasks import analyze
+from app.runtime import RuntimeSettings, runtime
+from app.services.control import CircuitBreaker, RequestGate, RoutingTimeout, SessionLocks
 from app.services.history import HistoryManager
-
 
 logger = logging.getLogger(__name__)
 
 
 class RouterEngine:
-    """
-    Main routing engine.
-
-    Optimized for:
-        - 16 GB RAM
-        - CPU-only Ollama
-        - small local models
-        - bounded context
-        - controlled fallback
-    """
-
-    def __init__(
-        self,
-        provider_registry: ProviderRegistry,
-        registry: RegistryService,
-        history: HistoryManager,
-    ) -> None:
+    """Single-process bounded routing with a total deadline and atomic turns."""
+    def __init__(self, provider_registry: ProviderRegistry, registry: RegistryService,
+                 history: HistoryManager, *, gate: RequestGate | None = None,
+                 config: RuntimeSettings = runtime) -> None:
         self._provider_registry = provider_registry
         self._registry = registry
         self._history = history
-
+        self.config = config
+        self.gate = gate if gate is not None else RequestGate(config)
+        self._sessions = SessionLocks()
+        self.breaker = CircuitBreaker(config)
         self.selector = ModelSelector(registry)
         self.fallback = FallbackManager()
 
-    async def chat(
-        self,
-        session_id: str,
-        prompt: str,
-        model: str | None = None,
-    ) -> str:
-        # ----------------------------------------------------
-        # 1. Select initial model
-        # ----------------------------------------------------
+    async def chat(self, session_id: str, prompt: str, model: str | None = None,
+                   max_tokens: int | None = None) -> str:
+        if not re.fullmatch(r'[\w.-]{1,128}', session_id):
+            raise ValueError('session_id must contain 1-128 letters, digits, dots, underscores or hyphens.')
+        if not prompt.strip() or len(prompt) > self.config.max_prompt_chars:
+            raise ValueError('Prompt is empty or exceeds the configured character limit.')
+        if max_tokens is not None and not 1 <= max_tokens <= MAX_REQUEST_OUTPUT_TOKENS:
+            raise ValueError(f'max_tokens must be between 1 and {MAX_REQUEST_OUTPUT_TOKENS}.')
+        request_id = uuid4().hex
+        try:
+            async with asyncio.timeout(self.config.request_timeout_s):
+                async with self.gate.slot():
+                    async with self._sessions.hold(session_id):
+                        return await self._chat(session_id, prompt, model, max_tokens, request_id)
+        except TimeoutError as exc:
+            logger.warning('request_timeout request_id=%s', request_id)
+            raise RoutingTimeout('Request deadline exceeded; try a shorter prompt or smaller model.') from exc
 
+    async def _chat(self, session_id: str, prompt: str, model: str | None,
+                    max_tokens: int | None, request_id: str) -> str:
+        revision = self._history.revision(session_id)
+        history = self._history.get(session_id)
+        profile = analyze(prompt, history)
+        output_tokens = max_tokens if max_tokens is not None else min(
+            profile.max_tokens, self.config.max_output_tokens,
+        )
         if model is None:
-            selected: ModelMetadata | None = (
-                await self.selector.select(prompt)
-            )
+            selected = await self.selector.select(profile.routing_prompt)
         else:
             selected = self._registry.model(model)
-
             if selected is None:
-                raise RuntimeError(
-                    f"Model '{model}' not found."
-                )
-
-        if selected is None:
-            raise RuntimeError(
-                "No model available."
-            )
-
-        # ----------------------------------------------------
-        # 2. Build conversation context
-        # ----------------------------------------------------
-
-        history = self._history.get(
-            session_id,
-        )
-
+                raise RuntimeError(f"Model '{model}' not found.")
+            if not selected.enabled or not supported(selected):
+                raise ValueError('Requested model is disabled or exceeds the configured size limit.')
         messages = builder.build(
-            history,
-            prompt,
+            history, prompt, instruction=profile.instruction, output_tokens=output_tokens,
         )
-
-        logger.info(
-            "Chat request: session=%s model=%s messages=%s",
-            session_id,
-            selected.name,
-            len(messages),
-        )
-
-        # ----------------------------------------------------
-        # 3. Build fallback candidates
-        # ----------------------------------------------------
-
-        candidates = self._build_candidates(
-            selected,
-        )
-
-        # ----------------------------------------------------
-        # 4. Try selected model and fallbacks
-        # ----------------------------------------------------
-
-        current: ModelMetadata | None = selected
-
-        attempted: set[str] = set()
-
-        while current is not None:
-            # Prevent duplicate attempts.
-            if current.name in attempted:
-                current = self.fallback.next(
-                    current,
-                    candidates,
-                )
+        if messages and messages[-1]['content'] != prompt:
+            raise ValueError('Input exceeds the context budget; send a smaller excerpt. No code was analyzed.')
+        candidates = self._build_candidates(selected, profile.routing_prompt)
+        logger.info('request_start request_id=%s task=%s model=%s max_tokens=%d',
+                    request_id, profile.task.value, selected.name, output_tokens)
+        attempts = 0
+        for current in candidates:
+            key = current.provider + ':' + current.name
+            if not supported(current) or not current.enabled or not self.breaker.available(key):
                 continue
-
-            attempted.add(current.name)
-
-            # ------------------------------------------------
-            # 5. Skip models that are too large for 16 GB
-            # ------------------------------------------------
-
-            if self._is_unsupported_large_model(
-                current,
-            ):
-                logger.warning(
-                    "Skipping large model for 16 GB profile: %s",
-                    current.name,
-                )
-
-                current = self.fallback.next(
-                    current,
-                    candidates,
-                )
-
-                continue
-
-            # ------------------------------------------------
-            # 6. Resolve provider
-            # ------------------------------------------------
-
-            provider = self._provider_registry.get(
-                current.provider,
-            )
-
+            provider = self._provider_registry.get(current.provider)
             if provider is None:
-                logger.warning(
-                    "Provider not found: %s",
-                    current.provider,
-                )
-
-                current = self.fallback.next(
-                    current,
-                    candidates,
-                )
-
                 continue
-
-            # ------------------------------------------------
-            # 7. Call provider
-            # ------------------------------------------------
-
+            if attempts >= self.config.max_attempts:
+                break
+            attempts += 1
             try:
-                logger.info(
-                    "Calling model=%s provider=%s",
-                    current.name,
-                    current.provider,
-                )
-
                 request = ChatRequest(
-                    model=current.name,
-                    messages=messages,
+                    model=current.name, messages=messages, max_tokens=output_tokens,
+                    temperature=profile.temperature,
+                    think=False if 'thinking' in current.capabilities and profile.task.value != 'reasoning' else None,
                 )
-
-                result = await provider.chat(
-                    request,
-                )
-
-                # ------------------------------------------------
-                # 8. Store history only after successful response
-                # ------------------------------------------------
-
-                self._history.append(
-                    session_id,
-                    "user",
-                    prompt,
-                )
-
-                self._history.append(
-                    session_id,
-                    "assistant",
-                    result.content,
-                )
-
-                logger.info(
-                    "Chat completed: model=%s latency_ms=%s "
-                    "prompt_tokens=%s completion_tokens=%s",
-                    result.model,
-                    result.latency_ms,
-                    result.prompt_tokens,
-                    result.completion_tokens,
-                )
-
-                return result.content
-
-            except Exception:
-                logger.exception(
-                    "Model request failed: "
-                    "model=%s provider=%s",
-                    current.name,
-                    current.provider,
-                )
-
-                current = self.fallback.next(
-                    current,
-                    candidates,
-                )
-
-        raise RuntimeError(
-            "No available model could complete the request."
-        )
-
-    def _build_candidates(
-        self,
-        selected: ModelMetadata,
-    ) -> list[ModelMetadata]:
-        """
-        Build fallback candidates.
-
-        Smaller models are preferred on a 16 GB machine.
-        """
-
-        models = self._registry.enabled()
-
-        # Keep only models suitable for the 16 GB profile.
-        models = [
-            model
-            for model in models
-            if not self._is_unsupported_large_model(
-                model,
+                async with asyncio.timeout(self.config.attempt_timeout_s):
+                    result = await provider.chat(request)
+                if not result.content.strip():
+                    raise RuntimeError('Model returned an empty answer.')
+            except (httpx.HTTPError, TimeoutError, RuntimeError, ValueError) as exc:
+                if (isinstance(exc, httpx.HTTPStatusError)
+                        and exc.response.status_code < 500
+                        and exc.response.status_code not in (408, 429)):
+                    raise RuntimeError('Ollama rejected the request; check model compatibility.') from exc
+                self.breaker.failure(key)
+                # Never log prompts, answers, raw session identifiers or upstream response bodies.
+                logger.warning('attempt_failed request_id=%s model=%s error_type=%s attempt=%d',
+                               request_id, current.name, type(exc).__name__, attempts)
+                continue
+            self.breaker.success(key)
+            self._history.append_turn(
+                session_id, prompt, result.content, expected_revision=revision,
             )
-        ]
+            logger.info('request_complete request_id=%s model=%s latency_ms=%d finish_reason=%s',
+                        request_id, current.name, result.latency_ms, result.finish_reason)
+            if result.finish_reason == 'length':
+                return result.content + '\n\n[Response reached its length limit; ask to continue.]'
+            return result.content
+        raise RuntimeError('No available model could complete the request.')
 
-        # Selected model always gets first attempt.
-        remaining = [
-            model
-            for model in models
-            if model.name != selected.name
-        ]
-
-        remaining.sort(
-            key=self._fallback_score,
-            reverse=True,
-        )
-
-        return [
-            selected,
-            *remaining,
-        ]
+    def _build_candidates(self, selected: ModelMetadata, prompt: str = '') -> list[ModelMetadata]:
+        result = [selected]
+        seen = {selected.name}
+        for candidate in self.selector.rank(prompt):
+            if candidate.name not in seen:
+                result.append(candidate)
+                seen.add(candidate.name)
+        return result
 
     @staticmethod
-    def _fallback_score(
-        model: ModelMetadata,
-    ) -> int:
-        """
-        Prefer smaller models for fallback.
+    def _is_unsupported_large_model(model: ModelMetadata) -> bool:
+        return not supported(model)
 
-        Preference:
+    def clear(self, session_id: str) -> None:
+        self._history.clear(session_id)
 
-            0.5B -> highest
-            1B   -> high
-            1.5B -> high
-            3B   -> high
-            7B   -> lower
-            8B   -> lower
-        """
-
-        name = model.name.lower()
-
-        if "0.5b" in name:
-            size_score = 50
-
-        elif "1.5b" in name:
-            size_score = 45
-
-        elif "1b" in name:
-            size_score = 45
-
-        elif "3b" in name:
-            size_score = 35
-
-        elif "7b" in name:
-            size_score = 25
-
-        elif "8b" in name:
-            size_score = 20
-
-        else:
-            size_score = 0
-
-        return size_score + model.priority
-
-    @staticmethod
-    def _is_unsupported_large_model(
-        model: ModelMetadata,
-    ) -> bool:
-        """
-        Reject models larger than 8B for the
-        16 GB RAM CPU-only profile.
-        """
-
-        name = model.name.lower()
-
-        large_markers = (
-            "12b",
-            "14b",
-            "20b",
-            "27b",
-            "32b",
-            "34b",
-            "70b",
-        )
-
-        return any(
-            marker in name
-            for marker in large_markers
-        )
-
-    def clear(
-        self,
-        session_id: str,
-    ) -> None:
-        self._history.clear(
-            session_id,
-        )
-
-    def sessions(
-        self,
-    ) -> list[str]:
+    def sessions(self) -> list[str]:
         return self._history.sessions()

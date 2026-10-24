@@ -4,21 +4,37 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-ollama-router"
-version = "0.1.0"
-description = "Production MCP Router for Ollama"
+version = "0.2.0"
+description = "Local Ollama task router with MCP and an authenticated chat-completions gateway"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.13"
 
 dependencies = [
-    "fastmcp",
-    "httpx",
-    "pydantic>=2",
-    "pydantic-settings",
-    "loguru",
+    "fastmcp==3.4.4",
+    "httpx==0.28.1",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.2",
+    "starlette==1.3.1",
+    "uvicorn==0.51.0",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "pytest-cov==7.1.0",
+    "coverage==7.15.4",
+]
+
+[tool.setuptools.package-data]
+app = ["eval_cases.json"]
+
+[tool.setuptools]
+include-package-data = false
 
 [tool.setuptools.packages.find]
 include = ["app*"]
+namespaces = false
 
 [tool.mypy]
 python_version = "3.11"

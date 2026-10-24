@@ -7,15 +7,11 @@ class FallbackManager:
         current: ModelMetadata,
         candidates: list[ModelMetadata],
     ) -> ModelMetadata | None:
-        ordered = sorted(
-            candidates,
-            key=lambda model: model.priority,
-            reverse=True,
-        )
-
         found = False
 
-        for model in ordered:
+        # The engine already orders candidates by suitability and puts
+        # the selected model first. Re-sorting here can skip valid models.
+        for model in candidates:
             if found:
                 return model
 

@@ -1,5 +1,6 @@
 from app.registry.schemas import ModelMetadata
 from app.router.matcher import Capability, Complexity
+from app.router.model_size import parameter_billions
 
 
 class RoutingPolicy:
@@ -68,7 +69,7 @@ class RoutingPolicy:
         model: ModelMetadata,
     ) -> float:
         """
-        Extract approximate parameter size from model name.
+        Read parameter metadata, falling back to the model name.
 
         Examples:
             qwen2.5-coder:3b -> 3
@@ -76,33 +77,8 @@ class RoutingPolicy:
             deepseek-r1:14b  -> 14
         """
 
-        name = model.name.lower()
-
-        known_sizes = (
-            "0.5b",
-            "1b",
-            "1.5b",
-            "3b",
-            "7b",
-            "8b",
-            "12b",
-            "14b",
-            "20b",
-            "27b",
-            "32b",
-            "34b",
-            "70b",
-        )
-
-        for size in known_sizes:
-            if size in name:
-                try:
-                    return float(size[:-1])
-                except ValueError:
-                    return 999.0
-
-        # Unknown size is treated as large.
-        return 999.0
+        size = parameter_billions(model)
+        return size if size is not None else 999.0
 
     @classmethod
     def _is_light_model(

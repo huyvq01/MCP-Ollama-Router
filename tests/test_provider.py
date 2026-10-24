@@ -3,6 +3,9 @@ import pytest
 from app.dependencies import container
 
 
+pytestmark = pytest.mark.integration
+
+
 @pytest.mark.asyncio
 async def test_provider_registry_startup():
     registry = container.provider_registry

@@ -1,3 +1,5 @@
+import asyncio
+
 from app.providers.registry import ProviderRegistry
 from app.registry.schemas import ModelMetadata
 from app.registry.storage import storage
@@ -9,10 +11,13 @@ class RegistryService:
         provider_registry: ProviderRegistry,
     ) -> None:
         self._provider_registry = provider_registry
+        self._refresh_lock = asyncio.Lock()
 
     async def refresh(self) -> None:
-        storage.clear()
+        async with self._refresh_lock:
+            await self._refresh()
 
+    async def _refresh(self) -> None:
         provider = self._provider_registry.get(
             "ollama",
         )
@@ -23,6 +28,7 @@ class RegistryService:
             )
 
         models = await provider.list_model_details()
+        snapshot: list[ModelMetadata] = []
 
         for model in models:
             capabilities = self._map_capabilities(
@@ -30,7 +36,7 @@ class RegistryService:
                 model.capabilities,
             )
 
-            storage.add(
+            snapshot.append(
                 ModelMetadata(
                     provider=model.provider,
                     name=model.name,
@@ -46,6 +52,8 @@ class RegistryService:
                 )
             )
 
+        storage.replace(snapshot)
+
     @staticmethod
     def _map_capabilities(
         model_name: str,
@@ -54,6 +62,10 @@ class RegistryService:
         capabilities: list[str] = [
             "general",
         ]
+        capabilities.extend(
+            item for item in ("tools", "thinking", "embedding")
+            if item in provider_capabilities
+        )
 
         lower_name = model_name.lower()
 

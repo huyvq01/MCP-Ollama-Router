@@ -1,0 +1,15 @@
+[
+  {"id":"code-java","prompt":"Viết code Java tạo REST API đơn giản","task":"code"},
+  {"id":"code-python","prompt":"Write a Python function to deduplicate records","task":"code"},
+  {"id":"code-fix","prompt":"Sửa lỗi NullPointerException trong Java","task":"code"},
+  {"id":"code-readme","prompt":"Viết code đọc file README","task":"code"},
+  {"id":"docs-api","prompt":"Viết tài liệu API Spring Boot","task":"documentation"},
+  {"id":"docs-readme","prompt":"Write README for a Python API","task":"documentation"},
+  {"id":"docs-guide","prompt":"Viết hướng dẫn sử dụng chức năng đăng nhập","task":"documentation"},
+  {"id":"explain-java","prompt":"Java là gì? Trả lời ngắn gọn","task":"explain"},
+  {"id":"explain-di","prompt":"Giải thích dependency injection","task":"explain"},
+  {"id":"explain-compare","prompt":"So sánh interface và abstract class","task":"explain"},
+  {"id":"reasoning","prompt":"Phân tích kiến trúc microservices","task":"reasoning"},
+  {"id":"general","prompt":"Xin chào","task":"general"},
+  {"id":"boundary","prompt":"google logo","task":"general"}
+]

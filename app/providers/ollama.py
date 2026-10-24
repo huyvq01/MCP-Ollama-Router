@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from time import perf_counter
 from typing import Any
 
@@ -7,6 +9,10 @@ from app.models.chat import ChatRequest, ChatResult
 from app.models.provider import ModelInfo
 from app.providers.base import BaseProvider
 from app.providers.config import ollama_config
+from app.runtime import runtime
+
+
+logger = logging.getLogger(__name__)
 
 
 class OllamaProvider(BaseProvider):
@@ -18,6 +24,8 @@ class OllamaProvider(BaseProvider):
             return
 
         self.client = httpx.AsyncClient(
+            trust_env=False,
+            limits=httpx.Limits(max_connections=runtime.max_concurrent + 4),
             timeout=httpx.Timeout(
                 connect=10.0,
                 read=ollama_config.timeout,
@@ -95,6 +103,38 @@ class OllamaProvider(BaseProvider):
         if not isinstance(raw_models, list):
             return []
 
+        # /api/tags normally omits capabilities. Discover native tool support
+        # through /api/show, without loading a model or generating tokens.
+        discovery_limit = asyncio.Semaphore(3)
+
+        async def enrich(raw: Any) -> None:
+            if not isinstance(raw, dict) or not isinstance(raw.get("name"), str):
+                return
+            details = raw.get("details", {})
+            known_context = raw.get("context_length", 0)
+            if not known_context and isinstance(details, dict):
+                known_context = details.get("context_length", 0)
+            if (isinstance(raw.get("capabilities"), list) and raw["capabilities"]
+                    and isinstance(known_context, int) and known_context > 0):
+                return
+            async with discovery_limit:
+                response = await self._client().post(
+                    f"{ollama_config.base_url}/api/show", json={"model": raw["name"]},
+                )
+                response.raise_for_status()
+                metadata = response.json()
+                if not isinstance(metadata, dict):
+                    raise RuntimeError("Invalid model metadata from Ollama")
+                raw["capabilities"] = metadata.get("capabilities", raw.get("capabilities", []))
+                info = metadata.get("model_info", {})
+                if isinstance(info, dict):
+                    lengths = [value for key, value in info.items()
+                               if key.endswith(".context_length") and isinstance(value, int)]
+                    if lengths:
+                        raw["context_length"] = min(lengths)
+
+        await asyncio.gather(*(enrich(raw) for raw in raw_models))
+
         result: list[ModelInfo] = []
 
         for raw_model in raw_models:
@@ -131,7 +171,7 @@ class OllamaProvider(BaseProvider):
 
             context_length = raw_model.get(
                 "context_length",
-                0,
+                details.get("context_length", 0),
             )
 
             capabilities = raw_model.get(
@@ -205,6 +245,8 @@ class OllamaProvider(BaseProvider):
             "keep_alive": ollama_config.keep_alive,
             "options": options,
         }
+        if request.think is not None:
+            payload["think"] = request.think
 
         start = perf_counter()
 
@@ -221,6 +263,9 @@ class OllamaProvider(BaseProvider):
 
         data: dict[str, Any] = response.json()
 
+        if not isinstance(data, dict):
+            raise RuntimeError("Invalid chat response from Ollama")
+
         prompt_tokens = data.get(
             "prompt_eval_count",
             0,
@@ -236,6 +281,22 @@ class OllamaProvider(BaseProvider):
 
         if not isinstance(completion_tokens, int):
             completion_tokens = 0
+
+        def seconds(key: str) -> float:
+            value = data.get(key, 0)
+            return value / 1e9 if isinstance(value, (int, float)) else 0.0
+
+        generation_seconds = seconds("eval_duration")
+        logger.info(
+            "Ollama timings: model=%s wall_ms=%s load_s=%.2f "
+            "prompt_s=%.2f generate_s=%.2f tokens_per_s=%.2f",
+            request.model,
+            elapsed,
+            seconds("load_duration"),
+            seconds("prompt_eval_duration"),
+            generation_seconds,
+            completion_tokens / generation_seconds if generation_seconds > 0 else 0.0,
+        )
 
         message = data.get(
             "message",
@@ -258,9 +319,9 @@ class OllamaProvider(BaseProvider):
             model=request.model,
             content=content,
             finish_reason=(
-                "stop"
-                if data.get("done")
-                else None
+                data["done_reason"]
+                if isinstance(data.get("done_reason"), str)
+                else ("stop" if data.get("done") else None)
             ),
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,

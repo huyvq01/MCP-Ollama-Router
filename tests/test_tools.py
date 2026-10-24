@@ -56,6 +56,21 @@ async def test_chat_tool(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
+@pytest.mark.asyncio
+async def test_chat_tool_forwards_output_limit(monkeypatch):
+    server = FakeServer()
+    router = Mock()
+    router.chat = AsyncMock(return_value="OK")
+    monkeypatch.setattr(chat_tools.container, "router", router)
+    chat_tools.register(server)
+    assert await server.tools["chat"](
+        session_id="fast", prompt="Hello", max_tokens=128,
+    ) == "OK"
+    router.chat.assert_awaited_once_with(
+        session_id="fast", prompt="Hello", model=None, max_tokens=128,
+    )
+
+
 def test_clear_chat_tool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -264,4 +279,5 @@ def test_register_all() -> None:
         "list_models",
         "show_model",
         "clear_cache",
+        "route_preview",
     }

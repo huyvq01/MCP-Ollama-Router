@@ -1,3 +1,6 @@
+import asyncio
+import logging
+
 from app.providers.base import BaseProvider
 from app.providers.discovery import provider_discovery
 
@@ -11,8 +14,15 @@ class ProviderRegistry:
             await provider.startup()
 
     async def shutdown(self) -> None:
-        for provider in self._providers.values():
-            await provider.shutdown()
+        results = await asyncio.gather(
+            *(provider.shutdown() for provider in self._providers.values()),
+            return_exceptions=True,
+        )
+        for result in results:
+            if isinstance(result, Exception):
+                logging.getLogger(__name__).error(
+                    "provider_shutdown_failed error_type=%s", type(result).__name__,
+                )
 
     def get(
         self,

@@ -1,5 +1,7 @@
 from enum import Enum
 
+from app.router.text import contains_any, normalize
+
 from app.router.rules import (
     CODE,
     COMPLEXITY,
@@ -26,19 +28,16 @@ class ModelMatcher:
         self,
         prompt: str,
     ) -> Capability:
-        text = prompt.lower()
+        text = normalize(prompt)
 
-        for keyword in CODE:
-            if keyword in text:
-                return Capability.CODE
+        if contains_any(text, CODE):
+            return Capability.CODE
 
-        for keyword in REASONING:
-            if keyword in text:
-                return Capability.REASONING
+        if contains_any(text, REASONING):
+            return Capability.REASONING
 
-        for keyword in VISION:
-            if keyword in text:
-                return Capability.VISION
+        if contains_any(text, VISION):
+            return Capability.VISION
 
         return Capability.GENERAL
 
@@ -52,11 +51,10 @@ class ModelMatcher:
         self,
         prompt: str,
     ) -> Complexity:
-        text = prompt.lower()
+        text = normalize(prompt)
 
-        for keyword in COMPLEXITY:
-            if keyword in text:
-                return Complexity.HIGH
+        if contains_any(text, COMPLEXITY):
+            return Complexity.HIGH
 
         if len(prompt) > 12000:
             return Complexity.HIGH

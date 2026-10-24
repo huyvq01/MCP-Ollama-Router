@@ -1,13 +1,135 @@
 Metadata-Version: 2.4
 Name: mcp-ollama-router
-Version: 0.1.0
-Summary: Production MCP Router for Ollama
-Requires-Python: >=3.11
+Version: 0.2.0
+Summary: Local Ollama task router with MCP and an authenticated chat-completions gateway
+Requires-Python: <3.13,>=3.11
 Description-Content-Type: text/markdown
-Requires-Dist: fastmcp
-Requires-Dist: httpx
-Requires-Dist: pydantic>=2
-Requires-Dist: pydantic-settings
-Requires-Dist: loguru
+Requires-Dist: fastmcp==3.4.4
+Requires-Dist: httpx==0.28.1
+Requires-Dist: pydantic==2.13.4
+Requires-Dist: pydantic-settings==2.14.2
+Requires-Dist: starlette==1.3.1
+Requires-Dist: uvicorn==0.51.0
+Provides-Extra: test
+Requires-Dist: pytest==9.1.1; extra == "test"
+Requires-Dist: pytest-asyncio==1.4.0; extra == "test"
+Requires-Dist: pytest-cov==7.1.0; extra == "test"
+Requires-Dist: coverage==7.15.4; extra == "test"
 
-"# MCP-Ollama-Router" 
+# MCP Ollama Router 0.2.0
+
+Local task routing for code, explanations and documentation. Two entry points:
+
+- **MCP stdio** (`python -m app.server`): a client reads files and delegates
+  selected excerpts to the `chat` tool. `route_preview` performs no inference.
+- **Chat-completions gateway** (`python -m app.gateway`): Cline can select
+  `auto` as its model provider, with native file tools handled by Cline.
+  This avoids an obligatory second model call through MCP for every request.
+
+This release is for a single-tenant, localhost company pilot. It is not a
+production certification or a guarantee of model answer quality.
+
+## Install
+
+Python 3.11–3.12; Python 3.11.9 on Windows is the validated local environment.
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]" -c constraints-windows-py311.txt
+.\.venv\Scripts\python.exe -m pip check
+```
+
+The constraints file pins the installed Windows/Python 3.11 dependency closure.
+For other platforms use `pip install -e ".[test]"` and validate independently.
+The old uv.lock was retired because it did not match this release; pip and
+pyproject.toml are the installation interface for this pilot.
+
+## Configure
+
+Copy `.env.example` to `.env` without overwriting an existing configuration.
+Settings are validated, read once at startup, and use the `ROUTER_` prefix.
+Restart processes after changes. Ollama defaults to `http://127.0.0.1:11434`.
+
+For the gateway generate a random API key and set `ROUTER_GATEWAY_API_KEY`:
+
+```powershell
+.\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))"
+.\.venv\Scripts\python.exe -m app.gateway
+```
+
+Cline configuration: OpenAI-compatible provider, base URL
+`http://127.0.0.1:8080/v1`, model `auto`, your API key, context 8192 and output
+limit at most 2048. Keep Cline file tools enabled. Do not also force every
+request through the separate MCP `chat` tool. The gateway implements a subset;
+end-to-end behavior must be verified with the installed Cline/model versions.
+
+## Routing and resource policy
+
+| Task | Preference | Default output tokens |
+|---|---|---|
+| Write/fix code | Code specialist | 768 |
+| Explain a concept | Smaller general model | 384 |
+| Write documentation | General writing model | 1024 |
+| Analyze a problem | Reasoning capability if eligible | 768 |
+| Basic conversation | Smaller general model | 192 |
+
+Detailed requests use up to 1536 tokens; brief requests up to 256. Overrides
+are bounded by the configured limit (2048 by default). Gateway requests with
+tools require a model advertising native tool support and default to 1024
+output tokens. The gateway preserves client instructions; MCP chat injects
+only the task-specific response template.
+
+Selection uses lightweight Vietnamese/English rules and model metadata, not
+an extra classifier LLM call. New models are discovered at startup. Native
+capabilities/context are read using `/api/show` when needed, without inference.
+The default model size ceiling is 8B, and unknown sizes are excluded. Configure
+`ROUTER_MAX_MODEL_BILLIONS` for the test hardware; names such as `8b` do not
+override metadata reporting 8.2B. Heuristic routing is not measured quality.
+
+Requests have bounded admission, queue wait, attempts, total deadlines and a
+model circuit breaker. MCP turns in one session are serialized and committed
+atomically; history is bounded and expires. The gateway is stateless: the
+client supplies conversation history. Prompt/answer text and raw session IDs
+are not written to application logs. JSON events go to stderr.
+
+MCP uses a 4096-token context by default; the agent gateway uses 8192. Token
+counts are conservative UTF-8 estimates, not a model tokenizer. Oversized
+current input is rejected, not silently reviewed after truncation. Context
+may need to be larger for agent tool definitions; larger context consumes
+more memory and can increase latency. Keep one process/worker for the pilot.
+
+## Gateway API subset
+
+- `GET /health/live`: process liveness, no credentials or model details.
+- `GET /health/ready`: authenticated provider/catalog readiness.
+- `GET /v1/models`: authenticated eligible models plus `auto`.
+- `POST /v1/chat/completions`: text messages, function tools, tool results,
+  streaming SSE, optional usage, temperature/top_p/stop/seed, token limits and
+  JSON-object/JSON-schema output format.
+
+Unsupported features are rejected explicitly (including images/audio, n>1,
+forced tool_choice and `parallel_tool_calls=false`). Returned `model` is the
+actual model. After streaming starts, failures emit an SSE error and do not
+switch models. An HTTP 200 stream can therefore still contain an error;
+clients must check events and completion status. Code/tool calls are never
+executed by this server. No SSO/RBAC/multi-tenant isolation/HA is provided.
+
+## Validation
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -m "not integration"
+.\.venv\Scripts\python.exe -m app.evaluate --out evaluation-routing.json
+# Opt-in, only with the gateway running:
+.\.venv\Scripts\python.exe -m app.evaluate --live --limit 3 --out evaluation-live.json
+```
+
+`pytest -m integration` requires live Ollama/models. Unit tests use mocks.
+Evaluation uses synthetic prompts, does not execute generated code, and
+excludes answers from its report unless `--include-answers` is provided.
+Model quality, tool-calling correctness and performance require a separate
+company acceptance corpus and the actual target hardware.
+
+See [the company pilot guide](docs/COMPANY_TEST.md) for setup, limitations,
+acceptance criteria and troubleshooting. Build a clean source ZIP with
+`python scripts/package_source.py --out release.zip`. It excludes local env,
+venvs, logs, caches, models and Git history, and contains a SHA-256 manifest.

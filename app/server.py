@@ -1,6 +1,7 @@
 from fastmcp import FastMCP
 
 from app.core.lifecycle import app_lifespan
+from app.core.logger import configure_logging
 from app.tools import register_all
 
 server = FastMCP(
@@ -11,4 +12,5 @@ server = FastMCP(
 register_all(server)
 
 if __name__ == "__main__":
+    configure_logging()
     server.run()

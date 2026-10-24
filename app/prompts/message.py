@@ -2,6 +2,7 @@ from app.config import (
     MAX_CONTEXT_TOKENS,
     MAX_OUTPUT_TOKENS,
     MAX_PROMPT_TOKENS,
+    MAX_REQUEST_OUTPUT_TOKENS,
 )
 from app.models.message import Message
 from app.prompts.system import SYSTEM_PROMPT
@@ -24,24 +25,35 @@ class MessageBuilder:
         self,
         history: list[Message],
         prompt: str,
+        *,
+        instruction: str = "",
+        output_tokens: int = MAX_OUTPUT_TOKENS,
     ) -> list[Message]:
+        if not 1 <= output_tokens <= MAX_REQUEST_OUTPUT_TOKENS:
+            raise ValueError("Invalid output token budget.")
+        system_content = SYSTEM_PROMPT
+        if instruction:
+            system_content += "\n\n" + instruction
+        system_message: Message = {"role": "system", "content": system_content}
+        # Reserve the current task's actual output budget before truncating
+        # input. This also handles longer code/documentation responses.
+        input_budget = MAX_CONTEXT_TOKENS - output_tokens
+        prompt_budget = min(
+            MAX_PROMPT_TOKENS,
+            max(0, input_budget - estimate_message_tokens(system_message) - 4),
+        )
         # --------------------------------------------------
         # 1. Limit current user prompt
         # --------------------------------------------------
 
         prompt = truncate_text_to_tokens(
             prompt,
-            MAX_PROMPT_TOKENS,
+            prompt_budget,
         )
 
         # --------------------------------------------------
         # 2. Build system and user messages
         # --------------------------------------------------
-
-        system_message: Message = {
-            "role": "system",
-            "content": SYSTEM_PROMPT,
-        }
 
         user_message: Message = {
             "role": "user",
@@ -54,7 +66,7 @@ class MessageBuilder:
 
         input_budget = (
             MAX_CONTEXT_TOKENS
-            - MAX_OUTPUT_TOKENS
+            - output_tokens
         )
 
         if input_budget < 0:

@@ -52,7 +52,7 @@ def test_next_model() -> None:
     )
 
 
-def test_unsorted_candidates() -> None:
+def test_preserves_candidate_order() -> None:
     manager = FallbackManager()
 
     qwen = model("qwen", 100)
@@ -72,6 +72,10 @@ def test_unsorted_candidates() -> None:
         )
         == deepseek
     )
+
+    # A low-priority selected model must still fall back to earlier
+    # priority ranks, following the order supplied by the engine.
+    assert manager.next(gemma, candidates) == qwen
 
 
 def test_current_not_found() -> None:
