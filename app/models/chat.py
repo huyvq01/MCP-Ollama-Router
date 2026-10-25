@@ -10,9 +10,9 @@ class ChatRequest(BaseModel):
 
     stream: bool = False
 
-    temperature: float = 0.7
+    temperature: float = Field(default=0.2, ge=0, le=2)
 
-    max_tokens: int | None = None
+    max_tokens: int | None = Field(default=512, ge=1, le=4096)
 
     top_p: float | None = None
 
@@ -35,3 +35,7 @@ class ChatResult(BaseModel):
     total_tokens: int = 0
 
     latency_ms: int = Field(default=0)
+
+    load_ms: int = Field(default=0, ge=0)
+
+    tokens_per_second: float = Field(default=0, ge=0)

@@ -4,17 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp-ollama-router"
-version = "0.1.0"
+version = "1.2.0"
 description = "Production MCP Router for Ollama"
 readme = "README.md"
 requires-python = ">=3.11"
 
 dependencies = [
-    "fastmcp",
-    "httpx",
-    "pydantic>=2",
-    "pydantic-settings",
-    "loguru",
+    "fastmcp==4.1.3",
+    "httpx==0.28.1",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.1",
+    "loguru==0.7.3",
+    "PyJWT==2.15.1",
 ]
 
 [tool.setuptools.packages.find]

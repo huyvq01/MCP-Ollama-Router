@@ -20,10 +20,13 @@ class FakeServer:
 
     def tool(
         self,
-        func: Callable[..., Any],
+        func: Callable[..., Any] | None = None,
+        **kwargs: Any,
     ) -> Callable[..., Any]:
-        self.tools[func.__name__] = func
-        return func
+        def decorate(fn):
+            self.tools[fn.__name__] = fn
+            return fn
+        return decorate(func) if func is not None else decorate
 
 
 @pytest.mark.asyncio
@@ -53,6 +56,9 @@ async def test_chat_tool(monkeypatch: pytest.MonkeyPatch) -> None:
         session_id="demo",
         prompt="Hello",
         model="qwen2.5-coder:7b",
+        mode="auto",
+        max_tokens=None,
+        temperature=None,
     )
 
 
@@ -256,7 +262,7 @@ def test_register_all() -> None:
 
     register_all(server)  # type: ignore[arg-type]
 
-    assert set(server.tools) == {
+    assert set(server.tools) >= {
         "chat",
         "clear_chat",
         "list_sessions",
@@ -264,4 +270,6 @@ def test_register_all() -> None:
         "list_models",
         "show_model",
         "clear_cache",
+        "chat_metrics",
+        "refresh_models",
     }

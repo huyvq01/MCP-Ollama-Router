@@ -71,7 +71,7 @@ async def test_chat(monkeypatch):
     monkeypatch.setattr(
         engine.builder,
         "build",
-        lambda history, prompt: [
+        lambda history, prompt, **kwargs: [
             {
                 "role": "user",
                 "content": prompt,
@@ -158,7 +158,7 @@ async def test_chat_provider_not_found(monkeypatch):
     monkeypatch.setattr(
         engine.builder,
         "build",
-        lambda *_: [],
+        lambda *_, **kwargs: [],
     )
 
     with pytest.raises(
@@ -228,7 +228,7 @@ async def test_chat_fallback(monkeypatch):
     monkeypatch.setattr(
         engine.builder,
         "build",
-        lambda *_: [],
+        lambda *_, **kwargs: [],
     )
 
     answer = await router.chat(
@@ -286,7 +286,7 @@ async def test_chat_all_models_failed(monkeypatch):
     monkeypatch.setattr(
         engine.builder,
         "build",
-        lambda *_: [],
+        lambda *_, **kwargs: [],
     )
 
     with pytest.raises(

@@ -1,46 +1,19 @@
-"""
-Global configuration for MCP Ollama Router
-"""
+"""Compatibility exports; runtime settings live in app.core.settings."""
 
 from pathlib import Path
 
-# =========================
-# Project
-# =========================
+from app.core.settings import settings
 
-PROJECT_NAME = "MCP Ollama Router"
-PROJECT_VERSION = "1.0.0"
-
-ROOT_DIR = Path(__file__).parent
+PROJECT_NAME = settings.project_name
+PROJECT_VERSION = settings.version
+ROOT_DIR = Path(__file__).resolve().parents[1]
 LOG_DIR = ROOT_DIR / "logs"
-
-# =========================
-# Ollama
-# =========================
-
-OLLAMA_HOST = "http://127.0.0.1:11434"
-
-OLLAMA_CHAT_API = f"{OLLAMA_HOST}/api/chat"
-OLLAMA_TAGS_API = f"{OLLAMA_HOST}/api/tags"
+OLLAMA_HOST = settings.ollama_host
+OLLAMA_CHAT_API = settings.chat_api
+OLLAMA_TAGS_API = settings.tags_api
 OLLAMA_GENERATE_API = f"{OLLAMA_HOST}/api/generate"
-
-REQUEST_TIMEOUT = 300
-
-# =========================
-# Default Model
-# =========================
-
-DEFAULT_MODEL = "qwen2.5-coder:7b"
-
-# =========================
-# History
-# =========================
-
-MAX_HISTORY = 20
-
-# =========================
-# Logging
-# =========================
-
+REQUEST_TIMEOUT = settings.timeout
+DEFAULT_MODEL = settings.default_model
+MAX_HISTORY = settings.max_history
 LOG_LEVEL = "INFO"
 LOG_FILE = LOG_DIR / "router.log"

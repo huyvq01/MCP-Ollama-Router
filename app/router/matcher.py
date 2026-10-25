@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import re
 from enum import StrEnum
 
 
@@ -10,82 +9,66 @@ class Capability(StrEnum):
     VISION = "vision"
     TRANSLATION = "translation"
     SUMMARIZE = "summarize"
+    REPORT = "report"
 
 
 class PromptMatcher:
-    CODE_KEYWORDS = (
-        "code",
-        "python",
-        "java",
-        "c#",
-        "golang",
-        "go",
-        "rust",
-        "bug",
-        "fix",
-        "refactor",
-        "sql",
-        "api",
-        "fastapi",
-        "javascript",
-        "typescript",
-        "docker",
-        "git",
-    )
-
-    REASONING_KEYWORDS = (
-        "explain",
-        "reason",
-        "logic",
-        "algorithm",
-        "math",
-        "optimize",
-        "analysis",
-        "why",
-        "prove",
-        "solve",
-    )
-
-    VISION_KEYWORDS = (
-        "image",
-        "photo",
-        "picture",
-        "vision",
-        "describe image",
-        "ocr",
-        "detect",
-        "recognize",
-    )
-
-    TRANSLATION_KEYWORDS = (
-        "translate",
-        "dịch",
-    )
-
-    SUMMARIZE_KEYWORDS = (
-        "summarize",
-        "tóm tắt",
-        "summary",
+    RULES = (
+        (Capability.TRANSLATION, ("translate", "dịch")),
+        (Capability.SUMMARIZE, ("summarize", "tóm tắt", "summary")),
+        (Capability.REPORT, ("report", "báo cáo", "dàn ý", "luận văn", "thuyết minh")),
+        (Capability.VISION, ("image", "photo", "picture", "ocr", "hình ảnh")),
+        (
+            Capability.CODE,
+            (
+                "code",
+                "python",
+                "java",
+                "c#",
+                "golang",
+                "go",
+                "rust",
+                "bug",
+                "fix",
+                "refactor",
+                "sql",
+                "api",
+                "javascript",
+                "typescript",
+                "docker",
+                "git",
+                "microflow",
+                "nanoflow",
+                "lập trình",
+                "sửa lỗi",
+            ),
+        ),
+        (
+            Capability.REASONING,
+            (
+                "explain",
+                "reason",
+                "logic",
+                "algorithm",
+                "math",
+                "optimize",
+                "analysis",
+                "why",
+                "prove",
+                "solve",
+                "giải thích",
+                "phân tích",
+            ),
+        ),
     )
 
     def match(self, prompt: str) -> Capability:
-        text = prompt.lower()
-
-        if any(word in text for word in self.CODE_KEYWORDS):
-            return Capability.CODE
-
-        if any(word in text for word in self.REASONING_KEYWORDS):
-            return Capability.REASONING
-
-        if any(word in text for word in self.VISION_KEYWORDS):
-            return Capability.VISION
-
-        if any(word in text for word in self.TRANSLATION_KEYWORDS):
-            return Capability.TRANSLATION
-
-        if any(word in text for word in self.SUMMARIZE_KEYWORDS):
-            return Capability.SUMMARIZE
-
+        text = prompt.casefold()
+        for capability, words in self.RULES:
+            if any(
+                re.search(r"(?<!\w)" + re.escape(w) + r"(?!\w)", text) for w in words
+            ):
+                return capability
         return Capability.GENERAL
 
 

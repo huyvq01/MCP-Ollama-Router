@@ -1,3 +1,5 @@
+import re
+
 from app.providers.registry import ProviderRegistry
 from app.registry.schemas import ModelMetadata
 from app.registry.storage import storage
@@ -11,8 +13,6 @@ class RegistryService:
         self._provider_registry = provider_registry
 
     async def refresh(self) -> None:
-        storage.clear()
-
         provider = self._provider_registry.get("ollama")
 
         if provider is None:
@@ -20,6 +20,7 @@ class RegistryService:
 
         models = await provider.list_models()
 
+        storage.clear()
         for name in models:
             capabilities = ["general"]
 
@@ -34,11 +35,14 @@ class RegistryService:
             if "llava" in lower:
                 capabilities.append("vision")
 
+            size = re.search(r":(\d+(?:\.\d+)?)b", lower)
+            priority = 200 - int(float(size.group(1)) * 10) if size else 50
             storage.add(
                 ModelMetadata(
                     provider="ollama",
                     name=name,
                     capabilities=capabilities,
+                    priority=priority,
                 )
             )
 

@@ -1,5 +1,6 @@
 import asyncio
 import sys
+from pathlib import Path
 
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
@@ -7,39 +8,25 @@ from fastmcp.client.transports import StdioTransport
 
 async def main() -> None:
     transport = StdioTransport(
+        keep_alive=False,
         command=sys.executable,
         args=["-m", "app.server"],
-        cwd=r"E:\MCP-Ollama-Router",
+        cwd=str(Path(__file__).resolve().parents[1]),
     )
-
     async with Client(transport) as client:
-        print("=== MCP CONNECTED ===")
-
-        print("\n=== TOOLS ===")
-        tools = await client.list_tools()
-
-        for tool in tools:
-            print(f"- {tool.name}")
-
-        print("\n=== LIST MODELS ===")
-        models = await client.call_tool(
-            "list_models",
-            {},
+        print([tool.name for tool in await client.list_tools()])
+        print(
+            await client.call_tool(
+                "chat",
+                {
+                    "session_id": "smoke",
+                    "prompt": "Write only a Java method adding two integers.",
+                    "mode": "code",
+                    "max_tokens": 96,
+                },
+            )
         )
-        print(models)
-
-        print("\n=== CHAT ===")
-        result = await client.call_tool(
-            "chat",
-            {
-                "session_id": "direct-mcp-test",
-                "prompt": "Reply with exactly: OK",
-                "model": "qwen2.5-coder:3b",
-            },
-        )
-
-        print("\n=== RESULT ===")
-        print(result)
+        print(await client.call_tool("chat_metrics", {"session_id": "smoke"}))
 
 
 if __name__ == "__main__":

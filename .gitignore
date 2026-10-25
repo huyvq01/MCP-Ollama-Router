@@ -1,0 +1,14 @@
+.venv*/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+backups/
+logs/
+.env
+
+.router-state/
+ollama-source-review/
+source-before-*.zip
