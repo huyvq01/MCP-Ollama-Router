@@ -4,6 +4,7 @@ from app.registry.service import RegistryService
 from app.router.engine import RouterEngine
 from app.services.cache import Cache
 from app.services.history import HistoryManager
+from app.services.mendix import MendixService
 from app.services.operations import Operations
 from app.services.review import RepositoryReview
 from app.services.session import SessionManager
@@ -31,6 +32,7 @@ class Container:
         self.workspace = Workspace(settings.workspace_root, settings.state_dir)
         self.operations = Operations(self.workspace, settings)
         self.review = RepositoryReview(self.workspace, self.router)
+        self.mendix = MendixService(settings, self.workspace, self.router)
 
 
 container: Container = Container()

@@ -22,6 +22,7 @@ async def app_lifespan(server: FastMCP) -> AsyncIterator[dict[str, object]]:
         yield {}
     finally:
         try:
+            await container.mendix.shutdown()
             await container.provider_registry.shutdown()
         finally:
             container.workspace.release_server()

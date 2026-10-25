@@ -57,3 +57,9 @@ See AGENT_GUIDE.md for configuration and examples.
 31 tools include confined repository access/review, reviewed changes with
 rollback/recovery, named checks, controlled Git, public documentation retrieval
 and scoped JWT HTTP. This update does not publish code or change credentials.
+
+## Mendix 11.6.3 model reading and reports
+
+Ten additional MCP tools export saved Mendix models with mx dump-mpr, index units,
+read confined source and produce resumable Ollama reports. See [MENDIX_USAGE.md](MENDIX_USAGE.md).
+Existing repository workspace and checks are preserved. No MPR editing is included.

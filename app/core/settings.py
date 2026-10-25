@@ -27,6 +27,9 @@ class Settings(BaseSettings):
 
     workspace_root: Path = Path(__file__).resolve().parents[2]
     state_dir: Path | None = None
+    mendix_project: Path | None = None
+    mendix_mx_executable: Path | None = None
+    mendix_export_timeout: int = Field(default=600, ge=10, le=1800)
     check_timeout: int = Field(default=120, ge=1, le=600)
     check_commands: dict[str, list[str]] = {
         "tests": ["{python}", "-m", "pytest", "-o", "addopts=", "-q"],
