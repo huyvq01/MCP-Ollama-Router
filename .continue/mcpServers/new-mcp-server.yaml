@@ -1,0 +1,16 @@
+name: Ollama Router MCP
+version: 1.0.0
+schema: v1
+mcpServers:
+- name: ollama-router
+  command: D:\MCP-Ollama-Router\.venv-31210\Scripts\python.exe
+  args:
+  - -m
+  - app.server
+  - --coding-tools
+  cwd: D:\MCP-Ollama-Router
+  connectionTimeout: 60000
+  env:
+    ROUTER_WORKSPACE_ROOT: D:/MCP-Ollama-Router
+    ROUTER_TRANSPORT: stdio
+    ROUTER_CHECK_COMMANDS: '{"tests":["{python}","-m","pytest","-o","addopts=","-q"],"lint":["{python}","-m","ruff","check","app"]}'

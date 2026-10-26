@@ -29,6 +29,7 @@ def main() -> None:
     parser.add_argument("--transport", choices=["stdio", "http"])
     parser.add_argument("--host")
     parser.add_argument("--port", type=int)
+    parser.add_argument("--coding-tools", action="store_true")
     args = parser.parse_args()
     config = settings.model_copy(
         update={
@@ -42,6 +43,21 @@ def main() -> None:
         }
     )
     instance = create_server(config)
+    if args.coding_tools:
+        instance.enable(
+            names={
+                "workspace_info",
+                "list_files",
+                "read_file",
+                "search_code",
+                "propose_changes",
+                "apply_changes",
+                "run_check",
+                "rollback_changes",
+            },
+            components={"tool"},
+            only=True,
+        )
     if config.transport == "stdio":
         instance.run(show_banner=False)
     else:
