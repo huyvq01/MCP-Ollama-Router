@@ -24,13 +24,13 @@ def register(server: FastMCP) -> None:
         max_tokens: int | None = None,
         temperature: float | None = None,
     ) -> str:
-        """Ask the local Java/Mendix assistant. Default: fast 3B model, concise
-        output (512 tokens). Use mode=report for Vietnamese reports, code for
-        implementation; split long reports into sections. Pass only relevant
-        excerpts, not whole repositories. Reuse session_id for follow-ups; use
-        a new one for unrelated work. 7B is slower and should be explicitly
-        requested. This is a text assistant, not a file editor or web search
-        tool."""
+        """Answer code questions or write reports using the local model router.
+        Use mode=auto and omit model for automatic selection: the configured
+        report model handles reports, the default model handles other questions.
+        The user does not need to name tools or models. Use a new session_id for
+        unrelated tasks and reuse it for follow-ups. For repository questions,
+        locate/read the actual source first and include only relevant evidence.
+        This tool generates text; it does not read or modify files itself."""
         return await container.router.chat(
             session_id=session_key(session_id),
             prompt=prompt,

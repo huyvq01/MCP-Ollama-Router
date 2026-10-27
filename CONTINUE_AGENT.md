@@ -1,46 +1,60 @@
-# Continue + Ollama agent bridge
+# Continue: yêu cầu bằng ngôn ngữ tự nhiên
 
-Continue uses the local OpenAI-compatible API at http://127.0.0.1:18080/v1.
-The bridge forwards to Ollama at http://127.0.0.1:11434. It repairs complete
-JSON function calls returned as text only if the function was advertised and
-the arguments satisfy its JSON schema. It never executes a tool itself.
-Native tool calls are preserved. Examples embedded in prose, unknown calls,
-invalid arguments, truncated generations and disabled tool calls are not promoted.
+Chọn Agent và model `Qwen Coder 3B Agent Bridge` trong Continue. Không cần ghi tên
+tool, JSON hoặc session_id trong câu hỏi thường ngày.
 
-## Start after restarting the computer
+Ví dụ:
 
-Open PowerShell in this repository and run:
+- `Phân tích giúp tôi file message.py`.
+- `Giải thích app/server.py làm gì`.
+- `Tìm hàm build trong dự án`.
+- `Liệt kê các file Python`.
+- `Chạy kiểm thử dự án giúp tôi`.
+- `Viết báo cáo ngắn về lợi ích của kiểm thử phần mềm`.
+- `Sửa hello.py để giá trị value bằng 2, cho tôi xem bản thay đổi`.
 
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\start_agent_bridge.ps1
-```
+## Cách xử lý
 
-Keep that terminal open. Start Ollama as well. Then reload VS Code, select
-Continue's local configuration `Ollama Local Agent`, model
-`Qwen Coder 3B Agent Bridge`, and Agent mode. Start a new conversation.
+Bridge tự chọn bước tiếp theo từ những MCP tools Continue cung cấp. Nếu chỉ có
+tên file, nó tìm đường dẫn trước rồi đọc nội dung thật; nếu trùng tên thì hỏi lại.
+Khi phân tích, nó dùng dữ liệu đã đọc để tạo giải thích, không chỉ chép lại file.
+Yêu cầu tìm symbol dùng công cụ tìm mã; yêu cầu kiểm thử dùng tên check mà
+workspace_info đã xác nhận. Nó không tự đoán lệnh shell.
 
-Try: `Dung read_file doc app/server.py, sau do giai thich ham create_server.`
-Check for an actual tool execution card, not just JSON text.
+Viết báo cáo được chuyển sang MCP chat với mode=auto, không ép model. Router dùng
+ROUTER_REPORT_MODEL cho báo cáo và ROUTER_DEFAULT_MODEL cho các câu hỏi khác qua
+MCP chat. Điều này không có nghĩa mọi lượt của model điều khiển đều chuyển sang 7B.
+Có thể hỏi `Model nào vừa trả lời?` sau lần viết báo cáo trong cùng cuộc trò chuyện.
 
-The project MCP configuration runs `python -m app.server --coding-tools`.
-This optional profile advertises eight tools: workspace_info, list_files,
-read_file, search_code, propose_changes, apply_changes, run_check and
-rollback_changes. Without the flag all existing tools remain available.
-The Cline MCP connection was disabled so that Continue can own this workspace.
-Do not enable both clients for the same workspace at once.
+Sửa file vẫn theo luồng đọc → đề xuất diff → bạn xem → xác nhận `đồng ý áp dụng`.
+Client tiếp tục thực thi tool và giữ chính sách Ask First/Automatic bạn đã chọn.
+Bridge không tự đọc ổ đĩa, không tự thực thi tool và không bỏ qua quyền của client.
+Các yêu cầu phức tạp ngoài các luồng chuẩn vẫn do model lập kế hoạch; yêu cầu chưa
+rõ hoặc có nhiều file cùng tên cần bạn bổ sung thông tin.
 
-The bridge buffers the Ollama response before emitting OpenAI SSE events.
-Tokens therefore appear after generation rather than immediately. It listens
-only on loopback and is intended for local desktop use. It does not add
-automatic model routing or guarantee the model will choose the right tool.
-Continue still handles tool execution and approval. Review changes as usual.
-
-## Validation
+## Khởi động
 
 ```powershell
-.\.venv-31210\Scripts\python.exe -m pytest tests/test_agent_bridge.py tests/test_server.py -o addopts= -p no:cacheprovider -q
+python scripts/portable.py bridge
 ```
 
-Live checks also verified SSE tool-call conversion, MCP reading of the real
-app/server.py, a second model turn identifying create_server from the tool
-result, and tool selection with all eight coding-profile tools advertised.
+Cổng được đọc từ ROUTER_BRIDGE_PORT trong .env, mặc định 18080. apiBase của model
+Continue phải trỏ cùng cổng với hậu tố /v1. Không chạy hai bridge trên cùng cổng.
+Ollama cần đang chạy. Continue/Cline tự khởi động MCP stdio từ cấu hình đã sinh;
+chỉ một tiến trình MCP cho cùng workspace.
+
+ROUTER_BRIDGE_AUTO_TOOLS=true bật chọn bước tự động (mặc định); false chỉ chuyển
+request qua Ollama như trước. Trong Chat, Continue không cung cấp tools nên các
+hành động này không chạy. Dùng Agent và mở chat mới sau khi đổi cấu hình.
+
+## Xác minh
+
+Kiểm thử tự động:
+
+```powershell
+python scripts/portable.py setup --dev
+.\.venv-portable\Scripts\python.exe -m pytest tests/test_agent_workflow.py tests/test_agent_bridge.py -o addopts= -q
+```
+
+Xem các khối tool call trong Continue để biết hành động thật. Đừng coi JSON do model
+tự viết hoặc lời khẳng định đã đọc/sửa file là bằng chứng thực thi.

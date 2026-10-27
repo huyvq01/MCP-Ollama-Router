@@ -11,6 +11,6 @@ jobs:
         with:
           python-version: "3.12.10"
       - run: python -m pip install -e . -r requirements-dev.txt ruff
-      - run: python -m ruff check app scripts/issue_token.py scripts/test_agent_mcp.py scripts/test_http_mcp.py tests/test_workspace_agent.py tests/test_http_agent.py
+      - run: python -m ruff check app scripts/issue_token.py scripts/test_agent_mcp.py scripts/test_http_mcp.py tests/test_workspace_agent.py tests/test_http_agent.py scripts/portable.py tests/test_portable.py tests/test_agent_workflow.py tests/test_agent_bridge.py
       # Live Ollama tests run locally with the full suite/smoke scripts.
       - run: python -m pytest -o addopts= -q --ignore=tests/test_engine.py --ignore=tests/test_router.py --ignore=tests/test_selector.py --ignore=tests/test_registry.py --ignore=tests/test_provider.py

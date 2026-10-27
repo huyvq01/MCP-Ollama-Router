@@ -46,6 +46,10 @@ def main() -> None:
     if args.coding_tools:
         instance.enable(
             names={
+                "chat",
+                "chat_metrics",
+                "list_models",
+                "refresh_models",
                 "workspace_info",
                 "list_files",
                 "read_file",

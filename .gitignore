@@ -12,3 +12,6 @@ logs/
 .router-state/
 ollama-source-review/
 source-before-*.zip
+
+.local-config/
+.continue/mcpServers/new-mcp-server.yaml

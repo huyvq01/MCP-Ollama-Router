@@ -13,6 +13,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import httpx
 from jsonschema import ValidationError, validate
 
+from app.agent_workflow import guard_changes, prepare, step
+from app.core.settings import settings
+
 
 def normalize_completion(result: dict, request: dict) -> dict:
     """Promote only complete, schema-valid calls to advertised functions."""
@@ -81,6 +84,79 @@ def normalize_completion(result: dict, request: dict) -> dict:
     return result
 
 
+def completed_tool_results(request: dict) -> list[tuple[dict, str]]:
+    """Use only matched tool replies at the end of this request's history."""
+    messages = request.get("messages", [])
+    replies = []
+    cursor = len(messages) - 1
+    while cursor >= 0 and messages[cursor].get("role") == "tool":
+        replies.append(messages[cursor])
+        cursor -= 1
+    if not replies or cursor < 0:
+        return []
+    assistant = messages[cursor]
+    if assistant.get("role") != "assistant":
+        return []
+    calls = {call.get("id"): call for call in assistant.get("tool_calls", [])}
+    if {reply.get("tool_call_id") for reply in replies} != set(calls):
+        return []
+    completed = []
+    for reply in reversed(replies):
+        call = calls.get(reply.get("tool_call_id"))
+        content = reply.get("content")
+        if not call or not isinstance(content, str) or not content.strip():
+            return []
+        completed.append((call, content))
+    return completed
+
+
+def function_signature(call: dict) -> tuple[str, str] | None:
+    function = call.get("function", {})
+    name = function.get("name")
+    try:
+        arguments = json.loads(function.get("arguments", ""))
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(name, str) or not isinstance(arguments, dict):
+        return None
+    return name, json.dumps(arguments, sort_keys=True, ensure_ascii=True)
+
+
+def ensure_tool_answer(result: dict, request: dict) -> dict:
+    """Surface actual tool output if the model stops empty or repeats completed calls.
+
+    Never invent an answer, execute a tool, or reuse results across a new user turn.
+    """
+    completed = completed_tool_results(request)
+    if not completed:
+        return result
+    signatures = {function_signature(call) for call, _ in completed}
+    signatures.discard(None)
+    result = copy.deepcopy(result)
+    for choice in result.get("choices", []):
+        message = choice.get("message", {})
+        if message.get("refusal"):
+            continue
+        calls = message.get("tool_calls", [])
+        repeated = bool(calls) and all(
+            function_signature(call) in signatures for call in calls
+        )
+        empty = not calls and not (message.get("content") or "").strip()
+        if not (
+            repeated or (empty and choice.get("finish_reason") in {"stop", "length"})
+        ):
+            continue
+        message.pop("tool_calls", None)
+        message["content"] = "\n\n".join(
+            f"Tool result ({call['function']['name']}):\n{content}"
+            for call, content in completed
+        )
+        choice["finish_reason"] = "stop"
+        # Usage remains the upstream generation's token count, not this verbatim copy.
+        result["bridge_tool_result_fallback"] = True
+    return result
+
+
 def completion_events(result: dict):
     """Emit buffered completions as OpenAI SSE, including function-call deltas."""
     for choice in result.get("choices", []):
@@ -114,7 +190,7 @@ def completion_events(result: dict):
 
 
 class Handler(BaseHTTPRequestHandler):
-    upstream = "http://127.0.0.1:11434"
+    upstream = settings.ollama_host.rstrip("/")
 
     def log_message(self, *_args):
         pass  # Do not log prompts, paths or tool arguments.
@@ -154,18 +230,32 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": {"message": "Invalid JSON request"}})
             return
         stream = request.get("stream", False)
-        payload = {**request, "stream": False}
-        payload.pop("stream_options", None)
         try:
-            with httpx.Client(trust_env=False, timeout=180) as client:
-                response = client.post(
-                    self.upstream + "/v1/chat/completions", json=payload
+            planned, hint = (
+                step(request) if settings.bridge_auto_tools else (None, None)
+            )
+            if planned is not None:
+                result = planned
+            else:
+                payload = (
+                    prepare(request, hint)
+                    if settings.bridge_auto_tools
+                    else dict(request)
                 )
-                result = response.json()
-            if response.status_code != 200:
-                self.send_json(response.status_code, result)
-                return
+                payload["stream"] = False
+                payload.pop("stream_options", None)
+                with httpx.Client(trust_env=False, timeout=180) as client:
+                    response = client.post(
+                        self.upstream + "/v1/chat/completions", json=payload
+                    )
+                    result = response.json()
+                if response.status_code != 200:
+                    self.send_json(response.status_code, result)
+                    return
             result = normalize_completion(result, request)
+            if settings.bridge_auto_tools:
+                result = guard_changes(result, request)
+            result = ensure_tool_answer(result, request)
         except (httpx.HTTPError, ValueError):
             self.send_json(502, {"error": {"message": "Ollama request failed"}})
             return
@@ -187,7 +277,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--port", type=int, default=18080)
+    parser.add_argument("--port", type=int, default=settings.bridge_port)
     args = parser.parse_args()
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     print(f"Agent bridge: http://127.0.0.1:{args.port}/v1", flush=True)

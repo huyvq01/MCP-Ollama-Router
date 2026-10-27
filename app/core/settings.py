@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     project_name: str = "MCP Ollama Router"
     version: str = "1.2.0"
     ollama_host: str = "http://127.0.0.1:11434"
+    bridge_port: int = Field(default=18080, ge=1, le=65535)
+    bridge_auto_tools: bool = True
     timeout: int = Field(default=120, ge=10, le=600)
     default_model: str = "qwen2.5-coder:3b"
     report_model: str = "qwen2.5-coder:3b"
